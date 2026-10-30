@@ -5,13 +5,14 @@
 import * as vscode from "vscode";
 import { findAllSessions } from "./sessionDiscovery";
 import { parseSession, computeCost } from "./sessionParser";
-import { vendorFor } from "./pricing";
+import { vendorFor, providerForKey, stripProviderPrefix } from "./pricing";
 
 interface ExportRow {
   date: string;           // YYYY-MM-DD HH:MM (session start, local time)
   session_id: string;
   workspace: string;
   session_title: string;
+  provider: string;       // "copilot" | "ollama"
   model: string;
   vendor: string;
   calls: number;
@@ -41,7 +42,8 @@ function buildRows(fromTs: number, toTs: number, hours: number | undefined): Exp
         session_id: session.id,
         workspace: session.workspace_name,
         session_title: session.session_title,
-        model,
+        provider: providerForKey(model),
+        model: stripProviderPrefix(model),
         vendor: vendorFor(model),
         calls: st.calls,
         user_turns: st.user_turns,
@@ -68,7 +70,7 @@ function fmtDateTime(ts: number): string {
   return `${Y}-${M}-${D} ${h}:${m}`;
 }
 
-const CSV_HEADER = "date,session_id,workspace,session_title,model,vendor,calls,user_turns,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,estimated_cost_usd";
+const CSV_HEADER = "date,session_id,workspace,session_title,provider,model,vendor,calls,user_turns,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,estimated_cost_usd";
 
 function escapeCsvField(value: string): string {
   if (value.includes(",") || value.includes('"') || value.includes("\n")) {
@@ -84,8 +86,9 @@ function formatCsv(rows: ExportRow[]): string {
       r.session_id,
       escapeCsvField(r.workspace),
       escapeCsvField(r.session_title),
-      r.model,
-      r.vendor,
+      r.provider,
+      escapeCsvField(r.model),
+      escapeCsvField(r.vendor),
       String(r.calls),
       String(r.user_turns),
       String(r.input_tokens),

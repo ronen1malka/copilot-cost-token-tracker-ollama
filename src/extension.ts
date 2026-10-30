@@ -1,10 +1,16 @@
 import * as vscode from "vscode";
 import { DashboardPanel } from "./dashboardPanel";
-import { loadPricing } from "./pricing";
+import { loadPricing, refreshPricing } from "./pricing";
 import { resolveUserId, resetUserId } from "./userId";
+
 export function activate(context: vscode.ExtensionContext) {
   loadPricing(context.extensionUri.fsPath);
   console.log("[Copilot Cost & Token Tracker] Pricing loaded from bundled pricing.json");
+
+  // Trigger initial background remote pricing sync (GitHub Copilot + Ollama Cloud)
+  refreshPricing().catch(err => {
+    console.log("[Copilot Cost & Token Tracker] Remote pricing sync skipped:", err?.message || err);
+  });
 
   // Resolve (or mint) stable anonymous user ID
   resolveUserId(context);

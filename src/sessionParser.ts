@@ -5,7 +5,11 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { canonicalModel, findPricing, vendorFor, ASSUMED_CACHE_RATIO } from "./pricing";
+import {
+  canonicalModel, findPricing, vendorFor, ASSUMED_CACHE_RATIO,
+  ModelProvider, providerForKey, resolveModelMatch, stripProviderPrefix,
+  getPricing, getPricingStatus, getCreditSettings,
+} from "./pricing";
 import { SessionRecord, findAllSessions, getLatestSession, findSessionById } from "./sessionDiscovery";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -15,6 +19,8 @@ export interface CallRecord {
   seq: number;
   /** Canonical model key */
   model: string;
+  /** Provider source ("copilot" | "ollama") */
+  provider?: ModelProvider;
   /** debugName from attrs (e.g. "panel/editAgent", "summarizeConversationHistory") */
   debugName: string;
   /** Total input tokens sent */
@@ -376,19 +382,19 @@ function _pushUniqueByTurn(map: Record<string, string[]>, turnKey: string, value
  * by scanning the folders from the discovery log entry.
  */
 function _resolveFilePath(name: string, folders: string[]): string {
-  const exts = ['.md', '.prompt.md', '.agent.md', '.instructions.md'];
+  const exts = [".md", ".prompt.md", ".agent.md", ".instructions.md"];
   for (const rawFolder of folders) {
     // Normalize Unix-style Windows absolute paths: /c:/... → c:/...
-    const folder = rawFolder.replace(/^\/([a-zA-Z]):\//i, '$1:/');
+    const folder = rawFolder.replace(/^\/([a-zA-Z]):\//i, "$1:/");
     for (const ext of exts) {
       const p = path.join(folder, name + ext);
       if (fs.existsSync(p)) { return p; }
     }
     // Try {name}/SKILL.md (skill packaged in a subdirectory)
-    const subP = path.join(folder, name, 'SKILL.md');
+    const subP = path.join(folder, name, "SKILL.md");
     if (fs.existsSync(subP)) { return subP; }
   }
-  return '';
+  return "";
 }
 
 function _debugNamesToMode(names: Set<string>): string {
@@ -418,6 +424,8 @@ export interface ModelStats {
 
 export interface ModelResult {
   model: string;
+  display_model?: string;
+  provider?: ModelProvider;
   vendor: string;
   calls: number;
   main_calls: number;
@@ -457,8 +465,40 @@ export interface SessionAnalysis {
     cached_tokens: number;
     cache_ratio: number;
     cost: number;
+    copilot_cost: number;
+    ollama_cost: number;
   };
   context?: SessionContext;
+}
+
+// ── Session Provider Hint Detection ────────────────────────────────────
+
+/**
+ * Inspect chatSessions/<sessionId>.jsonl and main.jsonl to see if the session
+ * explicitly selected an Ollama provider/custom endpoint for ambiguous models (like kimi-k2.7-code or kimi-3).
+ */
+function detectSessionProviderHint(sessionDir: string): ModelProvider | undefined {
+  try {
+    const sid = path.basename(sessionDir);
+    const wsDir = path.resolve(sessionDir, "..", "..");
+    const chatSessionFile = path.join(wsDir, "chatSessions", `${sid}.jsonl`);
+    if (fs.existsSync(chatSessionFile)) {
+      const raw = fs.readFileSync(chatSessionFile, "utf-8");
+      if (/ollama\s*cloud|customendpoint\/ollama|"vendor"\s*:\s*"ollama"|:cloud\b/i.test(raw)) {
+        return "ollama";
+      }
+    }
+    const mainFile = path.join(sessionDir, "main.jsonl");
+    if (fs.existsSync(mainFile)) {
+      const mainRaw = fs.readFileSync(mainFile, "utf-8");
+      if (/customendpoint\/ollama\s*cloud\/|:cloud"/i.test(mainRaw)) {
+        return "ollama";
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
 }
 
 // ── Parsing ────────────────────────────────────────────────────────────
@@ -478,6 +518,7 @@ function parseJsonlFile(
   filePath: string,
   stats: Map<string, ModelStats>,
   isSubagent: boolean,
+  sessionProviderHint?: ModelProvider,
 ): void {
   if (!fs.existsSync(filePath)) { return; }
   let content: string;
@@ -503,7 +544,8 @@ function parseJsonlFile(
     const model: string = attrs.model || "";
     if (!model) { continue; }
 
-    const key = canonicalModel(model);
+    const resolved = resolveModelMatch(model, sessionProviderHint, attrs);
+    const key = resolved.canonicalKey;
     if (!stats.has(key)) { stats.set(key, newStats()); }
     const s = stats.get(key)!;
 
@@ -530,20 +572,23 @@ function parseJsonlFile(
   }
 }
 
-export function parseSession(sessionDir: string): Map<string, ModelStats> {
+export function parseSession(sessionDir: string, includeSubagents: boolean = true): Map<string, ModelStats> {
   const stats = new Map<string, ModelStats>();
+  const sessionHint = detectSessionProviderHint(sessionDir);
 
   // Pass 1: main.jsonl
-  parseJsonlFile(path.join(sessionDir, "main.jsonl"), stats, false);
+  parseJsonlFile(path.join(sessionDir, "main.jsonl"), stats, false, sessionHint);
 
   // Pass 2: sub-agent files
-  try {
-    for (const file of fs.readdirSync(sessionDir)) {
-      if (file === "main.jsonl") { continue; }
-      if (!file.startsWith("runSubagent-") || !file.endsWith(".jsonl")) { continue; }
-      parseJsonlFile(path.join(sessionDir, file), stats, true);
-    }
-  } catch { /* ignore */ }
+  if (includeSubagents) {
+    try {
+      for (const file of fs.readdirSync(sessionDir)) {
+        if (file === "main.jsonl") { continue; }
+        if (!file.startsWith("runSubagent-") || !file.endsWith(".jsonl")) { continue; }
+        parseJsonlFile(path.join(sessionDir, file), stats, true, sessionHint);
+      }
+    } catch { /* ignore */ }
+  }
 
   // Materialise user_turns
   for (const s of stats.values()) {
@@ -585,9 +630,14 @@ export function computeCallCost(
 
 export function computeCost(modelKey: string, s: ModelStats): ModelResult {
   const pricing = findPricing(modelKey);
+  const provider = providerForKey(modelKey);
+  const displayModel = stripProviderPrefix(modelKey);
   if (!pricing) {
     return {
-      model: modelKey, vendor: vendorFor(modelKey),
+      model: modelKey,
+      display_model: displayModel,
+      provider,
+      vendor: vendorFor(modelKey),
       calls: s.calls, main_calls: s.main_calls, subagent_calls: s.subagent_calls,
       user_turns: s.user_turns, input_tokens: s.input_tokens,
       fresh_input: s.input_tokens, cached_tokens: 0, cache_write_tokens: 0,
@@ -611,6 +661,8 @@ export function computeCost(modelKey: string, s: ModelStats): ModelResult {
 
   return {
     model: modelKey,
+    display_model: displayModel,
+    provider,
     vendor: vendorFor(modelKey),
     calls: s.calls,
     main_calls: s.main_calls,
@@ -653,12 +705,14 @@ function sessionToJson(s: SessionRecord) {
   };
 }
 
-export function analyzeSession(session: SessionRecord): SessionAnalysis {
-  const stats = parseSession(session.path);
+export function analyzeSession(session: SessionRecord, includeSubagents: boolean = true): SessionAnalysis {
+  const stats = parseSession(session.path, includeSubagents);
   const models = modelStatsToJson(stats);
   const context = parseSessionContext(session.path);
   const valid = models.filter(m => !m.warning);
   const totalCost = valid.reduce((sum, m) => sum + m.cost, 0);
+  const copilotCost = valid.filter(m => m.provider !== "ollama").reduce((sum, m) => sum + m.cost, 0);
+  const ollamaCost = valid.filter(m => m.provider === "ollama").reduce((sum, m) => sum + m.cost, 0);
   const totalInput = valid.reduce((sum, m) => sum + m.input_tokens, 0);
   const totalOutput = valid.reduce((sum, m) => sum + m.output_tokens, 0);
   const totalCached = valid.reduce((sum, m) => sum + m.cached_tokens, 0);
@@ -675,35 +729,48 @@ export function analyzeSession(session: SessionRecord): SessionAnalysis {
       cached_tokens: totalCached,
       cache_ratio: totalInput ? Math.round(1000 * totalCached / totalInput) / 10 : 0,
       cost: Math.round(totalCost * 1_000_000) / 1_000_000,
+      copilot_cost: Math.round(copilotCost * 1_000_000) / 1_000_000,
+      ollama_cost: Math.round(ollamaCost * 1_000_000) / 1_000_000,
     },
   };
 }
 
 /** Lightweight cost-only analysis — no context parsing. Used for bulk table loading. */
-export function analyzeSessionCost(session: SessionRecord): { id: string; totals: { cost: number; cache_ratio: number } } {
-  const stats = parseSession(session.path);
+export function analyzeSessionCost(
+  session: SessionRecord,
+  includeSubagents: boolean = true,
+): { id: string; totals: { cost: number; copilot_cost: number; ollama_cost: number; cache_ratio: number } } {
+  const stats = parseSession(session.path, includeSubagents);
   const models = modelStatsToJson(stats);
   const valid = models.filter(m => !m.warning);
   const totalCost = valid.reduce((sum, m) => sum + m.cost, 0);
+  const copilotCost = valid.filter(m => m.provider !== "ollama").reduce((sum, m) => sum + m.cost, 0);
+  const ollamaCost = valid.filter(m => m.provider === "ollama").reduce((sum, m) => sum + m.cost, 0);
   const totalInput = valid.reduce((sum, m) => sum + m.input_tokens, 0);
   const totalCached = valid.reduce((sum, m) => sum + m.cached_tokens, 0);
   return {
     id: session.id,
     totals: {
       cost: Math.round(totalCost * 1_000_000) / 1_000_000,
+      copilot_cost: Math.round(copilotCost * 1_000_000) / 1_000_000,
+      ollama_cost: Math.round(ollamaCost * 1_000_000) / 1_000_000,
       cache_ratio: totalInput ? Math.round(1000 * totalCached / totalInput) / 10 : 0,
     },
   };
 }
 
-export function analyzeAggregate(hours: number, prefiltered?: ReturnType<typeof findAllSessions>) {
+export function analyzeAggregate(
+  hours: number,
+  prefiltered?: ReturnType<typeof findAllSessions>,
+  includeSubagents: boolean = true,
+) {
   const sessions = prefiltered ?? findAllSessions(hours);
   if (!sessions.length) { return undefined; }
 
   const grand = new Map<string, ModelStats>();
 
   for (const s of sessions) {
-    const stats = parseSession(s.path);
+    const stats = parseSession(s.path, includeSubagents);
     for (const [model, st] of stats) {
       if (!grand.has(model)) {
         grand.set(model, {
@@ -716,6 +783,8 @@ export function analyzeAggregate(hours: number, prefiltered?: ReturnType<typeof 
       }
       const g = grand.get(model)!;
       g.calls += st.calls;
+      g.main_calls += st.main_calls;
+      g.subagent_calls += st.subagent_calls;
       g.input_tokens += st.input_tokens;
       g.output_tokens += st.output_tokens;
       g.cache_write_tokens += st.cache_write_tokens;
@@ -740,6 +809,8 @@ export function analyzeAggregate(hours: number, prefiltered?: ReturnType<typeof 
   const models = modelStatsToJson(grand);
   const valid = models.filter(m => !m.warning);
   const totalCost = valid.reduce((sum, m) => sum + m.cost, 0);
+  const copilotCost = valid.filter(m => m.provider !== "ollama").reduce((sum, m) => sum + m.cost, 0);
+  const ollamaCost = valid.filter(m => m.provider === "ollama").reduce((sum, m) => sum + m.cost, 0);
   const totalInput = valid.reduce((sum, m) => sum + m.input_tokens, 0);
   const totalOutput = valid.reduce((sum, m) => sum + m.output_tokens, 0);
   const totalCached = valid.reduce((sum, m) => sum + m.cached_tokens, 0);
@@ -756,7 +827,135 @@ export function analyzeAggregate(hours: number, prefiltered?: ReturnType<typeof 
       cached_tokens: totalCached,
       cache_ratio: totalInput ? Math.round(1000 * totalCached / totalInput) / 10 : 0,
       cost: Math.round(totalCost * 1_000_000) / 1_000_000,
+      copilot_cost: Math.round(copilotCost * 1_000_000) / 1_000_000,
+      ollama_cost: Math.round(ollamaCost * 1_000_000) / 1_000_000,
     },
+  };
+}
+
+// ── Models Tab Overview ────────────────────────────────────────────────
+
+export interface ObservedModelRecord {
+  rawModel: string;
+  provider: ModelProvider;
+  proxyUsed: string | null;
+  calls: number;
+}
+
+export interface KnownModelRecord {
+  key: string;
+  model: string;
+  provider: ModelProvider;
+  vendor: string;
+  input: number;
+  cached_input: number;
+  cache_write: number | null;
+  output: number;
+  source: string;
+  observedCalls: number;
+}
+
+export function getModelsOverview(
+  hours: number = 720,
+  prefiltered?: SessionRecord[],
+  includeSubagents: boolean = true,
+) {
+  const sessions = prefiltered ?? findAllSessions(hours);
+  const rawObservedMap = new Map<string, { rawModel: string; provider: ModelProvider; calls: number; canonicalKey: string; isExact: boolean; proxyUsed: string | null }>();
+  const canonicalObservedCalls = new Map<string, number>();
+
+  function scanFile(filePath: string, sessionHint?: ModelProvider) {
+    if (!fs.existsSync(filePath)) { return; }
+    let content = "";
+    try { content = fs.readFileSync(filePath, "utf-8"); } catch { return; }
+    for (const line of content.split("\n")) {
+      if (!line.trim()) { continue; }
+      let entry: any;
+      try { entry = JSON.parse(line); } catch { continue; }
+      if (entry.type !== "llm_request" || entry.status !== "ok") { continue; }
+      const attrs = entry.attrs || {};
+      const rawModel: string = attrs.model || "";
+      if (!rawModel) { continue; }
+
+      const resolved = resolveModelMatch(rawModel, sessionHint, attrs);
+      const mapKey = `${resolved.provider}::${rawModel}`;
+      const existing = rawObservedMap.get(mapKey);
+      if (existing) {
+        existing.calls++;
+      } else {
+        rawObservedMap.set(mapKey, {
+          rawModel,
+          provider: resolved.provider,
+          calls: 1,
+          canonicalKey: resolved.canonicalKey,
+          isExact: resolved.isExact,
+          proxyUsed: resolved.pricing ? resolved.proxyUsed : null,
+        });
+      }
+
+      if (resolved.pricing) {
+        canonicalObservedCalls.set(
+          resolved.canonicalKey,
+          (canonicalObservedCalls.get(resolved.canonicalKey) || 0) + 1,
+        );
+      }
+    }
+  }
+
+  for (const s of sessions) {
+    const hint = detectSessionProviderHint(s.path);
+    scanFile(path.join(s.path, "main.jsonl"), hint);
+    if (includeSubagents) {
+      try {
+        for (const file of fs.readdirSync(s.path)) {
+          if (file === "main.jsonl") { continue; }
+          if (!file.startsWith("runSubagent-") || !file.endsWith(".jsonl")) { continue; }
+          scanFile(path.join(s.path, file), hint);
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  // Observed models without an exact price (either unpriced OR matched via proxy/customendpoint)
+  const unmatchedObserved: ObservedModelRecord[] = [];
+  for (const item of rawObservedMap.values()) {
+    if (!item.isExact) {
+      unmatchedObserved.push({
+        rawModel: item.rawModel,
+        provider: item.provider,
+        proxyUsed: item.proxyUsed,
+        calls: item.calls,
+      });
+    }
+  }
+  unmatchedObserved.sort((a, b) => b.calls - a.calls || a.rawModel.localeCompare(b.rawModel));
+
+  // Known models from pricing catalog
+  const pricingTable = getPricing();
+  const knownModels: KnownModelRecord[] = Object.entries(pricingTable).map(([key, p]) => {
+    const provider: ModelProvider = p.provider || (key.startsWith("ollama/") ? "ollama" : "copilot");
+    const displayModel = stripProviderPrefix(key);
+    return {
+      key,
+      model: displayModel,
+      provider,
+      vendor: vendorFor(key),
+      input: p.input,
+      cached_input: p.cached_input,
+      cache_write: p.cache_write !== undefined ? p.cache_write : null,
+      output: p.output,
+      source: p.source || "bundled",
+      observedCalls: canonicalObservedCalls.get(key) || 0,
+    };
+  });
+
+  knownModels.sort((a, b) => a.model.localeCompare(b.model) || a.provider.localeCompare(b.provider));
+
+  return {
+    status: getPricingStatus(),
+    creditSettings: getCreditSettings(),
+    unmatchedObserved,
+    knownModels,
   };
 }
 
@@ -764,10 +963,11 @@ export { findAllSessions, getLatestSession, findSessionById };
 
 // ── Deep Dive ──────────────────────────────────────────────────────────
 
-export function parseSessionDeepDive(sessionDir: string): SessionDeepDive {
+export function parseSessionDeepDive(sessionDir: string, includeSubagents: boolean = true): SessionDeepDive {
   let currentTurnId = 0;
   let seqCounter = 0;
   const turnMap = new Map<number, TurnRecord>();
+  const sessionHint = detectSessionProviderHint(sessionDir);
 
   function ensureTurn(id: number): TurnRecord {
     if (!turnMap.has(id)) {
@@ -843,7 +1043,8 @@ export function parseSessionDeepDive(sessionDir: string): SessionDeepDive {
     const model: string = attrs.model || "";
     if (!model) { return; }
 
-    const key = canonicalModel(model);
+    const resolved = resolveModelMatch(model, sessionHint, attrs);
+    const key = resolved.canonicalKey;
     const inputTokens = parseInt(attrs.inputTokens ?? "0", 10) || 0;
     const outputTokens = parseInt(attrs.outputTokens ?? "0", 10) || 0;
     const cacheWriteTokens = parseInt(attrs.cacheWriteTokens ?? "0", 10) || 0;
@@ -867,6 +1068,7 @@ export function parseSessionDeepDive(sessionDir: string): SessionDeepDive {
     const callRecord: CallRecord = {
       seq: seqCounter,
       model: key,
+      provider: resolved.provider,
       debugName,
       inputTokens,
       cachedTokens: rawCached,
@@ -909,18 +1111,20 @@ export function parseSessionDeepDive(sessionDir: string): SessionDeepDive {
   }
 
   // Pass 2: subagent files — assign to the turn active at end of main.jsonl
-  const subagentTurnId = currentTurnId;
-  try {
-    for (const file of fs.readdirSync(sessionDir)) {
-      if (file === "main.jsonl") { continue; }
-      if (!file.startsWith("runSubagent-") || !file.endsWith(".jsonl")) { continue; }
-      let content = "";
-      try { content = fs.readFileSync(path.join(sessionDir, file), "utf-8"); } catch { continue; }
-      for (const line of content.split("\n")) {
-        processLine(line, true, subagentTurnId);
+  if (includeSubagents) {
+    const subagentTurnId = currentTurnId;
+    try {
+      for (const file of fs.readdirSync(sessionDir)) {
+        if (file === "main.jsonl") { continue; }
+        if (!file.startsWith("runSubagent-") || !file.endsWith(".jsonl")) { continue; }
+        let content = "";
+        try { content = fs.readFileSync(path.join(sessionDir, file), "utf-8"); } catch { continue; }
+        for (const line of content.split("\n")) {
+          processLine(line, true, subagentTurnId);
+        }
       }
-    }
-  } catch { /* ignore */ }
+    } catch { /* ignore */ }
+  }
 
   // Finalise turns: compute turn-level cacheHitPct and round costs
   const turns = [...turnMap.values()].sort((a, b) => a.turn - b.turn);

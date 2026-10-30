@@ -17,8 +17,10 @@
   --accent-dim: #1f6feb33;
   --green: #3fb950;
   --green-dim: #23863633;
-  --yellow: #c8c200;
-  --yellow-dim: #c8c20033;
+  --yellow: #d29922;
+  --yellow-dim: #d2992233;
+  --purple: #bc8cff;
+  --purple-dim: #8957e533;
   --red: #f85149;
   --gold: #e3b341;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
@@ -53,7 +55,7 @@ header h1 { font-size: 18px; font-weight: 600; display: flex; align-items: cente
 header h1 .icon { display: inline-flex; align-items: center; }
 .controls { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .controls label { font-size: 13px; color: var(--text-muted); }
-.controls select, .controls input {
+.controls select, .controls input[type="text"], .controls input[type="number"] {
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -62,6 +64,22 @@ header h1 .icon { display: inline-flex; align-items: center; }
   font-size: 13px;
 }
 .controls select:focus, .controls input:focus { outline: none; border-color: var(--accent); }
+.subagent-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.subagent-toggle input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
 /* Date inputs — force readable colors regardless of OS theme */
 input[type="date"] {
   color-scheme: dark;
@@ -85,9 +103,20 @@ input[type="date"] {
   transition: all 0.15s;
 }
 .btn:hover { background: var(--accent); color: #fff; }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .btn-sm { padding: 4px 10px; font-size: 12px; }
-.btn-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; }
-.btn-icon svg { width: 10px; height: 10px; fill: currentColor; }
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-ghost:hover { color: var(--accent); border-color: var(--accent); }
+.btn-ghost.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
 
 /* Tabs */
 .tabs {
@@ -121,7 +150,16 @@ input[type="date"] {
   border-radius: 10px;
   padding: 16px 20px;
 }
-.card-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.card-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 .card-value { font-size: 24px; font-weight: 600; font-family: var(--mono); }
 .card-value.cost { color: var(--gold); }
 .card-value.tokens { color: var(--accent); }
@@ -143,6 +181,8 @@ input[type="date"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 thead th {
@@ -159,6 +199,7 @@ tbody tr { cursor: pointer; transition: background 0.1s; }
 tbody tr:hover { background: var(--surface2); }
 tbody td { padding: 10px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 tbody tr:last-child td { border-bottom: none; }
+.table-static tbody tr { cursor: default; }
 .mono { font-family: var(--mono); font-size: 12px; }
 .text-right { text-align: right; }
 .text-muted { color: var(--text-muted); }
@@ -167,6 +208,7 @@ tbody tr:last-child td { border-bottom: none; }
 .text-yellow { color: var(--yellow); }
 .text-red    { color: var(--red); }
 .text-gold   { color: var(--gold); }
+.text-purple { color: var(--purple); }
 /* sortable table headers */
 thead th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 thead th.sortable:hover { color: var(--text); }
@@ -182,7 +224,76 @@ thead th.sort-desc .sort-icon::after { content: ' ↓'; opacity: 1; }
 }
 .badge-blue { background: var(--accent-dim); color: var(--accent); }
 .badge-green { background: var(--green-dim); color: var(--green); }
+.badge-purple { background: var(--purple-dim); color: var(--purple); }
+.badge-yellow { background: var(--yellow-dim); color: var(--yellow); }
 .badge-gray { background: #8b949e22; color: var(--text-muted); }
+
+/* Models tab status banner & plan editor */
+.pricing-banner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.pricing-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.pricing-check-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--green);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.plan-editor-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+.plan-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.plan-form-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.plan-form-row select, .plan-form-row input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: var(--mono);
+}
 
 /* Detail panel */
 .detail-panel {
@@ -230,7 +341,7 @@ thead th.sort-desc .sort-icon::after { content: ' ↓'; opacity: 1; }
   align-items: center;
   margin-bottom: 12px;
 }
-.model-name { font-weight: 600; font-size: 14px; }
+.model-name { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .model-cost { font-family: var(--mono); font-size: 16px; color: var(--gold); font-weight: 600; }
 .token-row {
   display: flex;
@@ -322,11 +433,6 @@ tbody tr.selected { background: var(--accent-dim); }
 .dd-toolbar-actions { display: flex; align-items: center; gap: 8px; }
 .dd-toolbar-btn { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 4px; padding: 3px 10px; font-size: 11px; cursor: pointer; transition: all 0.12s; }
 .dd-toolbar-btn:hover { border-color: var(--accent); color: var(--accent); }
-.dd-discovery { padding: 8px 14px 10px; border-bottom: 1px solid var(--border); background: #0d111788; }
-.dd-discovery summary { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); font-size: 12px; font-weight: 600; user-select: none; }
-.dd-discovery summary::-webkit-details-marker { display: none; }
-.dd-discovery-content { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-.dd-discovery-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .dd-call-count { display: inline-flex; align-items: center; justify-content: center; background: var(--accent-dim); color: var(--accent); border-radius: 10px; font-size: 10px; font-weight: 600; min-width: 20px; height: 18px; padding: 0 6px; margin-left: 6px; }
 .dd-trigger-btn { display: inline-flex; align-items: center; }
 .dd-trigger-icon { display: inline-flex; align-items: center; justify-content: center; width: 10px; height: 10px; margin-right: 6px; flex: 0 0 auto; }
@@ -344,12 +450,12 @@ tbody tr.selected { background: var(--accent-dim); }
     <label for="hours-select">Time window:</label>
     <select id="hours-select">
       <option value="6">6 hours</option>
-      <option value="12" selected>12 hours</option>
+      <option value="12">12 hours</option>
       <option value="24">24 hours</option>
       <option value="48">48 hours</option>
       <option value="72">72 hours</option>
       <option value="168">7 days</option>
-      <option value="720">30 days</option>
+      <option value="720" selected>30 days</option>
       <option value="mtd">This month</option>
       <option value="custom">Custom range…</option>
     </select>
@@ -358,6 +464,10 @@ tbody tr.selected { background: var(--accent-dim); }
       <span style="color:var(--text-muted);font-size:12px">to</span>
       <input type="date" id="date-to">
     </span>
+    <label class="subagent-toggle">
+      <input type="checkbox" id="include-subagents" checked>
+      <span>Include built-in sub-agents</span>
+    </label>
     <button class="btn" id="refresh-btn">↻ Refresh</button>
   </div>
 </header>
@@ -367,6 +477,7 @@ tbody tr.selected { background: var(--accent-dim); }
     <div class="tab active" data-view="latest">Latest Session</div>
     <div class="tab" data-view="sessions">All Sessions</div>
     <div class="tab" data-view="aggregate">Aggregate</div>
+    <div class="tab" data-view="models">Models</div>
   </div>
 
   <!-- Latest Session View -->
@@ -386,6 +497,12 @@ tbody tr.selected { background: var(--accent-dim); }
   <div class="view" id="view-aggregate">
     <div id="agg-loading" class="loading"><div class="spinner"></div><div>Calculating aggregate costs…</div></div>
     <div id="agg-content" style="display:none;"></div>
+  </div>
+
+  <!-- Models View -->
+  <div class="view" id="view-models">
+    <div id="models-loading" class="loading"><div class="spinner"></div><div>Loading models and pricing…</div></div>
+    <div id="models-content" style="display:none;"></div>
   </div>
 </div>
 
@@ -420,6 +537,13 @@ window.addEventListener('message', event => {
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
 
+let _creditSettings = {
+  ollamaMonthlyCreditUsd: 60,
+  ollamaPlan: 'pro',
+  copilotMonthlyCredits: 3000,
+  copilotCreditUsdRate: 0.01,
+};
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -436,40 +560,60 @@ function cssEscape(value) {
   return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
 }
 
-function shorten(value, maxLength) {
-  const text = String(value ?? '');
-  return text.length > maxLength ? text.slice(0, maxLength - 1) + '…' : text;
+function fmt(n) { return Number(n || 0).toLocaleString(); }
+function fmtCost(n) { return '$' + Number(n || 0).toFixed(4); }
+function fmtCostFull(n) { return '$' + Number(n || 0).toFixed(6); }
+function fmtRate(n) { return n == null ? '—' : '$' + Number(n).toFixed(3); }
+function fmtCredits(cost) {
+  const rate = (_creditSettings && _creditSettings.copilotCreditUsdRate) || 0.01;
+  return (Number(cost || 0) / rate).toFixed(2);
 }
 
-function fmt(n) { return n.toLocaleString(); }
-function fmtCost(n) { return '$' + n.toFixed(4); }
-function fmtCostFull(n) { return '$' + n.toFixed(6); }
-function fmtCredits(cost) { return (cost * 100).toFixed(2); }
-function pct(a, b) { return b ? (100 * a / b).toFixed(1) + '%' : '0%'; }
+function fmtRelativeTime(ts) {
+  if (!ts) return 'just now';
+  const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (diffSec < 60) return 'just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDays = Math.floor(diffHr / 24);
+  return `${diffDays}d ago`;
+}
 
-function getHours() { return parseInt($('#hours-select').value, 10); }
+function includeSubagentsFlag() {
+  const cb = $('#include-subagents');
+  return cb ? cb.checked : true;
+}
 
 function getTimeParams() {
   const sel = $('#hours-select').value;
+  const include_subagents = includeSubagentsFlag();
   if (sel === 'custom') {
     const from = $('#date-from').value;
     const to   = $('#date-to').value;
     if (from && to) {
       const fromTs = new Date(from).getTime();
       const toTs   = new Date(to).getTime() + 86400000 - 1;
-      return { from_ts: fromTs, to_ts: toTs };
+      return { from_ts: fromTs, to_ts: toTs, include_subagents };
     }
   }
   if (sel === 'mtd') {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-    return { from_ts: startOfMonth, to_ts: Date.now() };
+    return { from_ts: startOfMonth, to_ts: Date.now(), include_subagents };
   }
-  return { hours: parseInt(sel, 10) || 12 };
+  return { hours: parseInt(sel, 10) || 720, include_subagents };
+}
+
+function providerBadge(provider) {
+  if (provider === 'ollama') {
+    return '<span class="badge badge-purple" title="Served by Ollama Cloud">Ollama Cloud</span>';
+  }
+  return '<span class="badge badge-blue" title="Served by GitHub Copilot">GitHub Copilot</span>';
 }
 
 // ─── Rendering helpers ─────────────────────────────────────────────────
-// Cache health: traffic-light scale (separate semantic from cost colours)
 function cacheHealthClass(ratio) {
   if (ratio > 90) return 'text-green';
   if (ratio >= 70) return 'text-yellow';
@@ -481,19 +625,42 @@ function cacheBarClass(ratio) {
   return 'red';
 }
 
+function renderAiCreditsCard(totals) {
+  const copilotCost = totals.copilot_cost ?? totals.cost ?? 0;
+  const ollamaCost = totals.ollama_cost ?? 0;
+  const ollamaLimit = Number(_creditSettings.ollamaMonthlyCreditUsd ?? 60);
+  const ollamaRemain = Math.max(0, ollamaLimit - ollamaCost);
+  const ollamaPct = ollamaLimit > 0 ? Math.min(100, (100 * ollamaCost) / ollamaLimit) : 0;
+
+  let subLines = `<div>Copilot: <b>${fmtCredits(copilotCost)}</b> credits ($${copilotCost.toFixed(4)})</div>`;
+  subLines += `<div style="margin-top:2px">Ollama Cloud: <b>$${ollamaCost.toFixed(4)}</b> / $${ollamaLimit.toFixed(2)} credit ($${ollamaRemain.toFixed(2)} left · ${ollamaPct.toFixed(1)}%)</div>`;
+
+  return `
+    <div class="card">
+      <div class="card-label">
+        <span>AI Credits</span>
+        <button class="btn-ghost" data-action="open-plan-settings" title="Configure your GitHub Copilot and Ollama Cloud AI Credit plan limits">✎ Plan ($${ollamaLimit})</button>
+      </div>
+      <div class="card-value text-gold">${fmtCredits(totals.cost)}</div>
+      <div class="card-sub">${subLines}</div>
+    </div>`;
+}
+
 function renderSummaryCards(totals, cls = 'cards') {
+  const copilotCost = totals.copilot_cost ?? totals.cost ?? 0;
+  const ollamaCost = totals.ollama_cost ?? 0;
+  const splitSub = (ollamaCost > 0 && copilotCost > 0)
+    ? `Copilot: ${fmtCost(copilotCost)} · Ollama: ${fmtCost(ollamaCost)}`
+    : fmtCostFull(totals.cost);
+
   return `
     <div class="${cls}">
       <div class="card">
         <div class="card-label">Total Cost</div>
         <div class="card-value text-gold">${fmtCost(totals.cost)}</div>
-        <div class="card-sub">${fmtCostFull(totals.cost)}</div>
+        <div class="card-sub">${splitSub}</div>
       </div>
-      <div class="card">
-        <div class="card-label">AI Credits</div>
-        <div class="card-value text-gold">${fmtCredits(totals.cost)}</div>
-        <div class="card-sub">1 credit = $0.01 USD</div>
-      </div>
+      ${renderAiCreditsCard(totals)}
       <div class="card">
         <div class="card-label">LLM Calls</div>
         <div class="card-value">${fmt(totals.calls)}</div>
@@ -527,6 +694,8 @@ function renderModelBreakdown(models) {
           : isMixed
           ? `<span class="badge badge-gray" title="${m.subagent_calls} of ${m.calls} calls came from sub-agent runs">sub-agent ×${m.subagent_calls}</span>`
           : '';
+        const provBadge = providerBadge(m.provider);
+        const displayModel = m.display_model || m.model;
         const callsLine = isSubagentOnly
           ? `${m.vendor} · ${m.calls} call${m.calls!==1?'s':''} · sub-agent only`
           : isMixed
@@ -536,7 +705,7 @@ function renderModelBreakdown(models) {
         <div class="model-card${isSubagentOnly ? ' model-card-subagent' : ''}">
           <div class="model-card-head">
             <div>
-              <div class="model-name">${escapeHtml(m.model)} ${subagentBadge}</div>
+              <div class="model-name">${escapeHtml(displayModel)} ${provBadge} ${subagentBadge}</div>
               <div class="text-muted" style="font-size:11px">${escapeHtml(callsLine)}</div>
             </div>
             <div class="model-cost">${fmtCost(m.cost)}</div>
@@ -615,6 +784,7 @@ function renderDiscoveryBreakdown(ctx) {
 }
 
 function renderSessionDetail(data) {
+  if (data.creditSettings) { _creditSettings = data.creditSettings; }
   const s = data.session;
   return `
     <div class="detail-panel">
@@ -682,18 +852,18 @@ async function loadLatest() {
   content.style.display = 'none';
   try {
     const data = await rpc('getLatest', getTimeParams());
+    if (data.creditSettings) { _creditSettings = data.creditSettings; }
     _latestSessionId = data.session?.id;
     if (data.session?.id && data.context) { _ddCtx[data.session.id] = data.context; }
     content.innerHTML = renderSessionDetail(data);
     content.style.display = '';
-    // Auto-refresh the SAME session while it has no title or is < 5 min old
     const ageMs = Date.now() - (data.session?.ts || 0);
     const noTitle = !data.session?.session_title || data.session.session_title === 'untitled';
     if (_latestSessionId && (noTitle || ageMs < 5 * 60 * 1000)) {
       _latestAutoRefreshTimer = setInterval(async () => {
         if (currentView !== 'latest' || !_latestSessionId) { _clearLatestAutoRefresh(); return; }
         try {
-          const fresh = await rpc('getSession', { sessionId: _latestSessionId });
+          const fresh = await rpc('getSession', { sessionId: _latestSessionId, include_subagents: includeSubagentsFlag() });
           if (fresh.session?.id && fresh.context) { _ddCtx[fresh.session.id] = fresh.context; }
           $('#latest-content').innerHTML = renderSessionDetail(fresh);
           const stillNew = !fresh.session?.session_title || fresh.session.session_title === 'untitled'
@@ -810,8 +980,12 @@ async function loadSessions() {
   content.style.display = 'none';
   detail.style.display = 'none';
   try {
-    const raw = await rpc('getSessions', getTimeParams());
-    sessionsCache = raw.map(s => ({ ...s, _cost: null, _cache: null, _analysis: null, _ctx: null }));
+    const [raw, creditSettings] = await Promise.all([
+      rpc('getSessions', getTimeParams()),
+      rpc('getCreditSettings').catch(() => _creditSettings),
+    ]);
+    if (creditSettings) { _creditSettings = creditSettings; }
+    sessionsCache = raw.map(s => ({ ...s, _cost: null, _copilotCost: null, _ollamaCost: null, _cache: null, _analysis: null, _ctx: null }));
     if (!sessionsCache.length) {
       content.innerHTML = '<div class="empty">No sessions found in this time window.</div>';
     } else {
@@ -822,16 +996,22 @@ async function loadSessions() {
         return `<th class="${sortCls}"${styleAttr}${dataAttr}>${c.label}${c.sortable ? '<span class="sort-icon"></span>' : ''}</th>`;
       }).join('');
 
+      const ollamaLimit = Number(_creditSettings.ollamaMonthlyCreditUsd ?? 60);
+
       content.innerHTML = `
         <div class="cards" style="margin-bottom:16px">
           <div class="card">
             <div class="card-label">Total Cost</div>
             <div class="card-value text-gold" id="sessions-totals-cost">…</div>
+            <div class="card-sub" id="sessions-totals-cost-sub">Calculating provider split…</div>
           </div>
           <div class="card">
-            <div class="card-label">Total Credits</div>
+            <div class="card-label">
+              <span>Total Credits</span>
+              <button class="btn-ghost" data-action="open-plan-settings" title="Configure your GitHub Copilot and Ollama Cloud AI Credit plan limits">✎ Plan ($${ollamaLimit})</button>
+            </div>
             <div class="card-value text-gold" id="sessions-totals-credits">…</div>
-            <div class="card-sub">1 credit = $0.01 USD</div>
+            <div class="card-sub" id="sessions-totals-credits-sub">1 Copilot credit = $0.01 USD · Ollama Plan = $${ollamaLimit.toFixed(2)}</div>
           </div>
         </div>
         <div class="table-wrap">
@@ -865,12 +1045,18 @@ async function loadSessions() {
       document.getElementById('export-json-btn')?.addEventListener('click', () => exportData('json'));
 
       let _totalCost = 0;
+      let _totalCopilotCost = 0;
+      let _totalOllamaCost = 0;
       sessionsCache.forEach(s => {
-        rpc('getSessionCost', { sessionId: s.id })
+        rpc('getSessionCost', { sessionId: s.id, include_subagents: includeSubagentsFlag() })
           .then(data => {
             const cost = data?.totals?.cost;
+            const copilotCost = data?.totals?.copilot_cost ?? cost ?? 0;
+            const ollamaCost = data?.totals?.ollama_cost ?? 0;
             const cacheRatio = data?.totals?.cache_ratio;
             s._cost = cost ?? null;
+            s._copilotCost = copilotCost;
+            s._ollamaCost = ollamaCost;
             s._cache = cacheRatio ?? null;
 
             const cell = document.querySelector(`.cost-cell[data-id="${cssEscape(s.id)}"]`);
@@ -882,10 +1068,21 @@ async function loadSessions() {
 
             if (cost != null) {
               _totalCost += cost;
+              _totalCopilotCost += copilotCost;
+              _totalOllamaCost += ollamaCost;
               const tc = document.getElementById('sessions-totals-cost');
+              const tcSub = document.getElementById('sessions-totals-cost-sub');
               const cr = document.getElementById('sessions-totals-credits');
+              const crSub = document.getElementById('sessions-totals-credits-sub');
               if (tc) tc.textContent = `$${_totalCost.toFixed(4)}`;
+              if (tcSub) {
+                tcSub.textContent = `Copilot: $${_totalCopilotCost.toFixed(4)} · Ollama Cloud: $${_totalOllamaCost.toFixed(4)}`;
+              }
               if (cr) cr.textContent = fmtCredits(_totalCost);
+              if (crSub) {
+                const rem = Math.max(0, ollamaLimit - _totalOllamaCost);
+                crSub.innerHTML = `Copilot: <b>${fmtCredits(_totalCopilotCost)}</b> credits · Ollama Cloud: <b>$${_totalOllamaCost.toFixed(4)}</b> / $${ollamaLimit.toFixed(2)} ($${rem.toFixed(2)} left)`;
+              }
             }
           })
           .catch(() => {
@@ -942,7 +1139,7 @@ async function selectSession(id, clickedTr) {
     if (cached && cached._analysis) {
       data = cached._analysis;
     } else {
-      data = await rpc('getSession', { sessionId: id });
+      data = await rpc('getSession', { sessionId: id, include_subagents: includeSubagentsFlag() });
       if (cached) {
         cached._analysis = data;
         if (data && data.context) { cached._ctx = data.context; }
@@ -963,6 +1160,7 @@ async function loadAggregate() {
   content.style.display = 'none';
   try {
     const data = await rpc('getAggregate', getTimeParams());
+    if (data.creditSettings) { _creditSettings = data.creditSettings; }
     content.innerHTML = `
       <div class="detail-panel">
         <div class="detail-header">
@@ -987,6 +1185,328 @@ async function loadAggregate() {
     content.style.display = '';
   }
   loading.style.display = 'none';
+}
+
+// ─── View: Models ──────────────────────────────────────────────────────
+let _modelsData = null;
+let _modelsProviderFilter = 'all'; // 'all' | 'copilot' | 'ollama'
+let _modelsSearchQuery = '';
+
+function renderModelsView(data) {
+  if (!data) return '<div class="empty">No models data</div>';
+  const { status, creditSettings, unmatchedObserved, knownModels } = data;
+  if (creditSettings) { _creditSettings = creditSettings; }
+
+  const updatedRel = fmtRelativeTime(status.updatedAt);
+  const checkedRel = fmtRelativeTime(status.lastCheckedAt);
+
+  // Filter known models by provider & search query
+  const filteredKnown = (knownModels || []).filter(m => {
+    if (_modelsProviderFilter !== 'all' && m.provider !== _modelsProviderFilter) {
+      return false;
+    }
+    if (_modelsSearchQuery) {
+      const q = _modelsSearchQuery.toLowerCase();
+      return (
+        m.model.toLowerCase().includes(q) ||
+        m.vendor.toLowerCase().includes(q) ||
+        m.provider.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
+  const unmatchedRowsHTML = (unmatchedObserved || []).map(row => {
+    const proxyCell = row.proxyUsed
+      ? `<span class="mono text-accent">${escapeHtml(row.proxyUsed)}</span>`
+      : `<span class="mono text-red">no match</span>`;
+    return `
+      <tr>
+        <td class="mono">${escapeHtml(row.rawModel)}</td>
+        <td>${providerBadge(row.provider)}</td>
+        <td>${proxyCell}</td>
+        <td class="mono text-right">${fmt(row.calls)}</td>
+      </tr>`;
+  }).join('');
+
+  const unmatchedSectionHTML = (unmatchedObserved && unmatchedObserved.length > 0)
+    ? `
+      <div class="table-wrap table-static">
+        <div class="table-title">
+          <span class="text-yellow">⚠ Observed models without an exact price (${unmatchedObserved.length})</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Model (As Seen In Logs)</th>
+              <th>Provider</th>
+              <th>Proxy Used</th>
+              <th class="text-right">Calls</th>
+            </tr>
+          </thead>
+          <tbody>${unmatchedRowsHTML}</tbody>
+        </table>
+      </div>`
+    : '';
+
+  const knownRowsHTML = filteredKnown.map(m => {
+    const cachedDisp = m.cached_input != null ? fmtRate(m.cached_input) : '—';
+    const cacheWriteDisp = m.cache_write != null ? fmtRate(m.cache_write) : '<span class="text-muted">—</span>';
+    const sourceBadge = m.source === 'remote'
+      ? '<span class="badge badge-green">remote</span>'
+      : '<span class="badge badge-gray">bundled</span>';
+    const observedDisp = m.observedCalls > 0
+      ? `<span class="mono">${fmt(m.observedCalls)}</span>`
+      : '<span class="text-muted">—</span>';
+
+    return `
+      <tr>
+        <td class="mono">${escapeHtml(m.model)}</td>
+        <td>${providerBadge(m.provider)}</td>
+        <td>${escapeHtml(m.vendor)}</td>
+        <td class="mono text-right">${fmtRate(m.input)}</td>
+        <td class="mono text-right">${cachedDisp}</td>
+        <td class="mono text-right">${cacheWriteDisp}</td>
+        <td class="mono text-right">${fmtRate(m.output)}</td>
+        <td>${sourceBadge}</td>
+        <td class="text-right">${observedDisp}</td>
+      </tr>`;
+  }).join('');
+
+  const ollamaPlan = _creditSettings.ollamaPlan || 'pro';
+  const ollamaCreditUsd = Number(_creditSettings.ollamaMonthlyCreditUsd ?? 60);
+  const copilotCredits = Number(_creditSettings.copilotMonthlyCredits ?? 3000);
+
+  return `
+    <!-- Remote Pricing Status Banner -->
+    <div class="pricing-banner">
+      <div class="pricing-banner-left">
+        <span class="pricing-check-icon" aria-hidden="true">✓</span>
+        <div>
+          <div style="font-size:14px;font-weight:600">
+            Remote pricing data · ${fmt(status.totalModels)} models
+            <span class="text-muted" style="font-weight:400;font-size:12px;margin-left:6px">
+              (${fmt(status.copilotModels)} GitHub Copilot · ${fmt(status.ollamaModels)} Ollama Cloud)
+            </span>
+          </div>
+          <div class="text-muted" style="font-size:12px;margin-top:2px">
+            Updated ${escapeHtml(updatedRel)} · last checked ${escapeHtml(checkedRel)} · auto-update every 24h
+          </div>
+        </div>
+      </div>
+      <div>
+        <button class="btn btn-sm" id="update-pricing-btn">↻ Update now</button>
+      </div>
+    </div>
+
+    <!-- AI Credit Plan Settings Box -->
+    <div class="plan-editor-box" id="plan-settings-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:14px;font-weight:600">AI Credit Plan Settings</div>
+          <div class="text-muted" style="font-size:12px">Configure monthly AI Credit allowances for Ollama Cloud (e.g. $20 Pro plan = $60 AI Credits) and GitHub Copilot</div>
+        </div>
+        <span id="plan-save-status" class="text-green" style="font-size:12px;display:none">✓ Saved</span>
+      </div>
+      <div class="plan-grid">
+        <div class="plan-card">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-weight:600;font-size:13px">Ollama Cloud Monthly AI Credits</span>
+            <span class="badge badge-purple">Ollama Cloud</span>
+          </div>
+          <div class="text-muted" style="font-size:11px;margin-top:4px">
+            Pro plan ($20/mo) includes $60 of monthly token usage credits. Max ($100/mo) includes $300.
+          </div>
+          <div class="plan-form-row">
+            <label style="font-size:12px;color:var(--text-muted)">Plan:</label>
+            <select id="ollama-plan-select">
+              <option value="free" ${ollamaPlan === 'free' ? 'selected' : ''}>Free ($0)</option>
+              <option value="pro" ${ollamaPlan === 'pro' ? 'selected' : ''}>Pro ($20/mo → $60 Credits)</option>
+              <option value="max" ${ollamaPlan === 'max' ? 'selected' : ''}>Max ($100/mo → $300 Credits)</option>
+              <option value="team" ${ollamaPlan === 'team' ? 'selected' : ''}>Team ($500/mo → $1,000 Credits)</option>
+              <option value="custom" ${ollamaPlan === 'custom' ? 'selected' : ''}>Custom Credit ($)</option>
+            </select>
+            <label style="font-size:12px;color:var(--text-muted)">AI Credits ($):</label>
+            <input type="number" id="ollama-credit-input" min="0" step="1" value="${escapeHtml(String(ollamaCreditUsd))}" style="width:90px">
+          </div>
+        </div>
+
+        <div class="plan-card">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-weight:600;font-size:13px">GitHub Copilot AI Credits</span>
+            <span class="badge badge-blue">GitHub Copilot</span>
+          </div>
+          <div class="text-muted" style="font-size:11px;margin-top:4px">
+            1 GitHub AI Credit = $0.01 USD. Configure your monthly AI Credits allowance:
+          </div>
+          <div class="plan-form-row">
+            <label style="font-size:12px;color:var(--text-muted)">Monthly Credits:</label>
+            <input type="number" id="copilot-credit-input" min="0" step="100" value="${escapeHtml(String(copilotCredits))}" style="width:110px">
+            <button class="btn btn-sm" id="save-plan-btn">Save Plan</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Observed Models Without Exact Price -->
+    ${unmatchedSectionHTML}
+
+    <!-- Known Models Table -->
+    <div class="table-wrap table-static">
+      <div class="table-title">
+        <span>Known Models (USD per 1M tokens)</span>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <button class="btn-ghost ${_modelsProviderFilter === 'all' ? 'active' : ''}" data-provider-filter="all">All (${status.totalModels})</button>
+          <button class="btn-ghost ${_modelsProviderFilter === 'copilot' ? 'active' : ''}" data-provider-filter="copilot">GitHub Copilot (${status.copilotModels})</button>
+          <button class="btn-ghost ${_modelsProviderFilter === 'ollama' ? 'active' : ''}" data-provider-filter="ollama">Ollama Cloud (${status.ollamaModels})</button>
+          <input type="text" id="models-search-input" placeholder="Filter models…" value="${escapeHtml(_modelsSearchQuery)}" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:12px;width:150px">
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Provider</th>
+            <th>Vendor</th>
+            <th class="text-right">Input</th>
+            <th class="text-right">Cached</th>
+            <th class="text-right">Cache Write</th>
+            <th class="text-right">Output</th>
+            <th>Source</th>
+            <th class="text-right" title="Number of LLM calls observed for this model in the selected time window">Observed ⓘ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${knownRowsHTML || '<tr><td colspan="9" class="text-muted" style="text-align:center;padding:24px">No models match filter</td></tr>'}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function attachModelsViewHandlers(container) {
+  const updateBtn = $('#update-pricing-btn', container);
+  if (updateBtn) {
+    updateBtn.addEventListener('click', () => refreshRemotePricing());
+  }
+
+  const planSelect = $('#ollama-plan-select', container);
+  const creditInput = $('#ollama-credit-input', container);
+  if (planSelect && creditInput) {
+    planSelect.addEventListener('change', () => {
+      const val = planSelect.value;
+      if (val === 'free') creditInput.value = '0';
+      else if (val === 'pro') creditInput.value = '60';
+      else if (val === 'max') creditInput.value = '300';
+      else if (val === 'team') creditInput.value = '1000';
+      savePlanSettings();
+    });
+    creditInput.addEventListener('change', () => {
+      const num = Number(creditInput.value);
+      if (num === 60) planSelect.value = 'pro';
+      else if (num === 300) planSelect.value = 'max';
+      else if (num === 1000) planSelect.value = 'team';
+      else if (num === 0) planSelect.value = 'free';
+      else planSelect.value = 'custom';
+      savePlanSettings();
+    });
+  }
+
+  const savePlanBtn = $('#save-plan-btn', container);
+  if (savePlanBtn) {
+    savePlanBtn.addEventListener('click', () => savePlanSettings());
+  }
+
+  $$('button[data-provider-filter]', container).forEach(btn => {
+    btn.addEventListener('click', () => {
+      _modelsProviderFilter = btn.dataset.providerFilter || 'all';
+      container.innerHTML = renderModelsView(_modelsData);
+      attachModelsViewHandlers(container);
+    });
+  });
+
+  const searchInput = $('#models-search-input', container);
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      _modelsSearchQuery = searchInput.value;
+      const pos = searchInput.selectionStart || _modelsSearchQuery.length;
+      container.innerHTML = renderModelsView(_modelsData);
+      attachModelsViewHandlers(container);
+      const nextInput = $('#models-search-input', container);
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.setSelectionRange(pos, pos);
+      }
+    });
+  }
+}
+
+async function savePlanSettings() {
+  const planSelect = $('#ollama-plan-select');
+  const ollamaInput = $('#ollama-credit-input');
+  const copilotInput = $('#copilot-credit-input');
+  const settings = {
+    ollamaPlan: planSelect ? planSelect.value : _creditSettings.ollamaPlan,
+    ollamaMonthlyCreditUsd: ollamaInput ? Math.max(0, Number(ollamaInput.value) || 0) : _creditSettings.ollamaMonthlyCreditUsd,
+    copilotMonthlyCredits: copilotInput ? Math.max(0, Number(copilotInput.value) || 0) : _creditSettings.copilotMonthlyCredits,
+  };
+  try {
+    const updated = await rpc('updateCreditSettings', { settings });
+    _creditSettings = updated;
+    if (_modelsData) { _modelsData.creditSettings = updated; }
+    const statusEl = $('#plan-save-status');
+    if (statusEl) {
+      statusEl.style.display = 'inline';
+      setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
+    }
+  } catch (e) {
+    console.error('Failed to save plan settings:', e);
+  }
+}
+
+async function loadModels(forceScrape = false) {
+  const loading = $('#models-loading');
+  const content = $('#models-content');
+  loading.style.display = '';
+  content.style.display = 'none';
+  try {
+    const rpcMethod = forceScrape ? 'refreshPricing' : 'getModels';
+    const data = await rpc(rpcMethod, getTimeParams());
+    _modelsData = data;
+    if (data.creditSettings) { _creditSettings = data.creditSettings; }
+    content.innerHTML = renderModelsView(data);
+    attachModelsViewHandlers(content);
+    content.style.display = '';
+  } catch (e) {
+    content.innerHTML = `<div class="empty">${escapeHtml((e && e.message) || String(e))}</div>`;
+    content.style.display = '';
+  }
+  loading.style.display = 'none';
+}
+
+async function refreshRemotePricing() {
+  const updateBtn = $('#update-pricing-btn');
+  const headerRefreshBtn = $('#refresh-btn');
+  if (updateBtn) {
+    updateBtn.disabled = true;
+    updateBtn.textContent = '⏳ Scraping GitHub & Ollama…';
+  }
+  if (headerRefreshBtn) {
+    headerRefreshBtn.disabled = true;
+  }
+  try {
+    const data = await rpc('refreshPricing', getTimeParams());
+    _modelsData = data;
+    if (data.creditSettings) { _creditSettings = data.creditSettings; }
+    const content = $('#models-content');
+    if (content) {
+      content.innerHTML = renderModelsView(data);
+      attachModelsViewHandlers(content);
+    }
+  } catch (e) {
+    console.error('Failed to refresh pricing:', e);
+  } finally {
+    if (headerRefreshBtn) { headerRefreshBtn.disabled = false; }
+  }
 }
 
 // ─── Deep Dive ─────────────────────────────────────────────────────────
@@ -1028,7 +1548,6 @@ function ddFreshCls(fresh, input) {
 
 function ddShortenName(debugName) {
   if (!debugName) { return '—'; }
-  // Take last segment after '/' or use full name if short
   const seg = debugName.split('/').pop() || debugName;
   return seg.length > 28 ? seg.slice(0, 27) + '…' : seg;
 }
@@ -1048,7 +1567,6 @@ function renderDeepDiveTable(sessionId, data, ctx) {
     { key: 'type',   label: 'Details', sortable: false },
   ];
 
-  // Sort turn rows
   const sorted = [...turns].sort((a, b) => {
     let av, bv;
     switch (sort.col) {
@@ -1064,7 +1582,6 @@ function renderDeepDiveTable(sessionId, data, ctx) {
     if (av > bv) { return -sort.dir; }
     return 0;
   });
-
 
   const theadHTML = DD_COLS.map(c => {
     const isActive = c.sortable && c.key === sort.col;
@@ -1088,15 +1605,12 @@ function renderDeepDiveTable(sessionId, data, ctx) {
       ? ' <span title="Context summarization occurred in this turn">⚠️</span>'
       : '';
 
-    // User message preview (truncated)
     const userMsgPreview = t.userMessage
       ? `<span class="dd-user-msg" title="${escapeHtml(t.userMessage)}">${escapeHtml(t.userMessage.length > 80 ? t.userMessage.slice(0, 77) + '…' : t.userMessage)}</span>`
       : '';
 
-    // Compact token breakdown tooltip: "Fresh: X | Cached: Y"
     const tokenTooltip = `Input: ${fmt(t.inputTokens)} (Fresh: ${fmt(t.freshTokens)}, Cached: ${fmt(t.cachedTokens)})`;
 
-    // Summarise unique debugName segments for the Details cell
     const uniqueTypes = [...new Set(t.callRecords.map(c => ddShortenName(c.debugName)).filter(n => n !== '—'))];
     const turnTypeSummary = uniqueTypes.length > 1 ? 'multiple' : uniqueTypes.join(', ');
 
@@ -1110,7 +1624,6 @@ function renderDeepDiveTable(sessionId, data, ctx) {
       ...(instructionsByTurn[String(t.turn)] || []),
       ...(!hasTurn0 && t.turn === 1 ? (instructionsByTurn['0'] || []) : []),
     ].filter((value, idx, arr) => arr.indexOf(value) === idx);
-    // Tools: tool calls whose names are NOT skills (skills are discovery-level, not tool-call-level)
     const turnTools = toolCalls;
     const toolCountBadge = toolCalls.length > 0
       ? ` <span class="dd-call-count" title="${toolCalls.length} tool call${toolCalls.length !== 1 ? 's' : ''}">${toolCalls.length} tools</span>`
@@ -1150,7 +1663,8 @@ function renderDeepDiveTable(sessionId, data, ctx) {
         typeHTML += ' <span class="badge badge-gray" style="font-size:10px;padding:1px 5px">sub</span>';
       }
       const modelShort = escapeHtml(c.model.replace(/^.*\//, ''));
-      typeHTML += ` <span class="text-muted mono" style="font-size:10px" title="${escapeHtml(c.model)}">${modelShort}</span>`;
+      const provTag = c.provider === 'ollama' ? ' [ollama]' : '';
+      typeHTML += ` <span class="text-muted mono" style="font-size:10px" title="${escapeHtml(c.model)}">${modelShort}${provTag}</span>`;
 
       const callDisplay = 'display:none;';
       rowsHTML += `<tr class="dd-call-row" data-ddturn="${escapeHtml(String(t.turn))}" style="${callDisplay}font-size:12px">
@@ -1164,7 +1678,6 @@ function renderDeepDiveTable(sessionId, data, ctx) {
       </tr>`;
     });
 
-    // Per-turn context strips (agents → skills → instructions → tools), shown when turn is expanded
     function makeChipStrip(label, items) {
       if (!items.length) { return ''; }
       const groups = new Map();
@@ -1190,9 +1703,7 @@ function renderDeepDiveTable(sessionId, data, ctx) {
         <td colspan="7"><div class="dd-tool-chips"><span class="dd-tool-label">${label}</span>${chips}</div></td>
       </tr>`;
     }
-    // Build skill chips: name as label, resolved path as tooltip
     const skillChips = turnSkills.map(s => ({ name: s, tip: skillPaths[s] || s }));
-    // Build instruction chips from applied instruction files: file name as label, full path as tooltip
     const instrChips = turnInstrFiles.map(fileName => {
       const instructionKey = fileName.replace(/\.instructions\.md$/i, '');
       const fullPath = instrPaths[instructionKey] || instrPaths[fileName] || '';
@@ -1204,8 +1715,6 @@ function renderDeepDiveTable(sessionId, data, ctx) {
     rowsHTML += makeChipStrip('tools',        turnTools);
   }
 
-  // Totals row
-  const freshTotCls = ddFreshCls(totals.freshTokens, totals.inputTokens);
   const totalTokenTooltip = `Fresh: ${fmt(totals.freshTokens)}, Cached: ${fmt(totals.cachedTokens)}`;
   rowsHTML += `<tr style="background:var(--surface2);font-weight:600;border-top:2px solid var(--border)">
     <td><b>Total</b></td>
@@ -1268,7 +1777,6 @@ function ddApplySort(sessionId, containerEl) {
   if (!data) { return; }
   const container = containerEl || document.getElementById('deep-dive-' + sessionId);
   if (!container) { return; }
-  // Preserve open state before re-render
   const openTurns = new Set();
   container.querySelectorAll('.dd-turn-row').forEach(tr => {
     const arrow = tr.querySelector('.dd-arrow');
@@ -1278,7 +1786,6 @@ function ddApplySort(sessionId, containerEl) {
   });
   container.innerHTML = renderDeepDiveTable(sessionId, data, _ddCtx[sessionId]);
   ddAttachHandlers(sessionId, container);
-  // Restore open state
   container.querySelectorAll('.dd-turn-row').forEach(tr => {
     if (openTurns.has(tr.dataset.ddturn)) {
       const arrow = tr.querySelector('.dd-arrow');
@@ -1327,8 +1834,6 @@ function _getCachedCtx(sessionId) {
 }
 
 async function loadDeepDive(sessionId, triggerBtn) {
-  // Scope to the panel containing the clicked button to avoid matching duplicate
-  // container IDs when the same session appears in both Latest and All Sessions views.
   const panel = triggerBtn ? triggerBtn.closest('.detail-panel') : null;
   const container = panel
     ? panel.querySelector(`[id="deep-dive-${sessionId}"]`)
@@ -1345,7 +1850,6 @@ async function loadDeepDive(sessionId, triggerBtn) {
     <span>Analysis</span>
   `.trim();
 
-  // Toggle: if already loaded, hide/show
   if (container.dataset.ddLoaded === 'true') {
     const isVisible = container.style.display !== 'none';
     container.style.display = isVisible ? 'none' : '';
@@ -1372,7 +1876,7 @@ async function loadDeepDive(sessionId, triggerBtn) {
 
   try {
     const [data, ctx] = await Promise.all([
-      rpc('getSessionDeepDive', { sessionId }),
+      rpc('getSessionDeepDive', { sessionId, include_subagents: includeSubagentsFlag() }),
       _getCachedCtx(sessionId),
     ]);
     _ddData[sessionId] = data;
@@ -1385,7 +1889,6 @@ async function loadDeepDive(sessionId, triggerBtn) {
       container.innerHTML = renderDeepDiveTable(sessionId, data, ctx);
       ddAttachHandlers(sessionId, container);
     }
-    // Collapse button at the bottom
     const collapseFooter = document.createElement('div');
     collapseFooter.className = 'dd-collapse-footer';
     collapseFooter.innerHTML = '<button class="btn btn-sm">↑ Collapse Analysis</button>';
@@ -1395,7 +1898,6 @@ async function loadDeepDive(sessionId, triggerBtn) {
         btn.innerHTML = buttonLabel + ' <span aria-hidden="true">↓</span>';
         btn.classList.remove('active');
         const headerH = document.querySelector('header')?.offsetHeight || 0;
-        // Scroll to the session row in the All Sessions table if present, otherwise the btn
         const sessionRow = document.querySelector(`tr[data-id="${CSS.escape(sessionId)}"]`);
         const anchor = sessionRow || btn;
         const rect = anchor.getBoundingClientRect();
@@ -1426,7 +1928,7 @@ async function loadDeepDive(sessionId, triggerBtn) {
 }
 
 // ─── Tab switching ─────────────────────────────────────────────────────
-const viewLoaders = { latest: loadLatest, sessions: loadSessions, aggregate: loadAggregate };
+const viewLoaders = { latest: loadLatest, sessions: loadSessions, aggregate: loadAggregate, models: loadModels };
 let currentView = 'latest';
 
 function switchView(view) {
@@ -1439,7 +1941,15 @@ function switchView(view) {
 
 $$('.tab').forEach(tab => tab.addEventListener('click', () => switchView(tab.dataset.view)));
 
-$('#refresh-btn').addEventListener('click', () => switchView(currentView));
+$('#refresh-btn').addEventListener('click', async () => {
+  // Always scrape latest pricing from GitHub Copilot + Ollama Cloud on refresh
+  await rpc('refreshPricing', getTimeParams()).catch(() => {});
+  switchView(currentView);
+});
+
+$('#include-subagents').addEventListener('change', () => {
+  switchView(currentView);
+});
 
 $('#hours-select').addEventListener('change', () => {
   const isCustom = $('#hours-select').value === 'custom';
@@ -1451,10 +1961,20 @@ $('#hours-select').addEventListener('change', () => {
 $('#date-from').addEventListener('change', () => { if ($('#date-to').value) switchView(currentView); });
 $('#date-to').addEventListener('change',   () => { if ($('#date-from').value) switchView(currentView); });
 
-// Deep Dive button — delegated handler (inline onclick blocked by CSP)
+// Delegated click handlers (inline onclick blocked by CSP)
 document.addEventListener('click', e => {
-  const btn = e.target.closest('button[data-dd-session]');
-  if (btn) { loadDeepDive(btn.dataset.ddSession, btn); }
+  const ddBtn = e.target.closest('button[data-dd-session]');
+  if (ddBtn) { loadDeepDive(ddBtn.dataset.ddSession, ddBtn); return; }
+
+  const planBtn = e.target.closest('button[data-action="open-plan-settings"]');
+  if (planBtn) {
+    e.stopPropagation();
+    switchView('models');
+    setTimeout(() => {
+      const box = document.getElementById('plan-settings-box');
+      if (box) { box.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    }, 150);
+  }
 });
 
 // Initial load
@@ -1463,6 +1983,7 @@ loadLatest();
 
 <div style="text-align:center;padding:16px 24px 24px;font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);margin-top:8px">
   Prices based on <a href="https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing" style="color:var(--accent);text-decoration:none;">docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing</a>
+  &amp; <a href="https://ollama.com/pricing" style="color:var(--accent);text-decoration:none;">ollama.com/pricing</a>
 </div>
 </body>
 </html>

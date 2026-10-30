@@ -9,8 +9,11 @@ import * as fs from "fs";
 import {
   findAllSessions, findSessionById,
   analyzeSession, analyzeSessionCost, analyzeAggregate, SessionAnalysis,
-  parseSessionContext, parseSessionDeepDive,
+  parseSessionContext, parseSessionDeepDive, getModelsOverview,
 } from "./sessionParser";
+import {
+  refreshPricing, getPricingStatus, getCreditSettings, saveCreditSettings,
+} from "./pricing";
 import { resolveUserId } from "./userId";
 import { exportData } from "./dataExporter";
 
@@ -70,6 +73,7 @@ export class DashboardPanel {
 
   private async handleMessage(msg: any) {
     const { type, requestId } = msg;
+    const includeSubagents = msg.include_subagents !== false;
     try {
       let data: any;
       switch (type) {
@@ -93,14 +97,14 @@ export class DashboardPanel {
           }
           let found: SessionAnalysis | undefined;
           for (const session of sessions) {
-            const analysis = analyzeSession(session);
+            const analysis = analyzeSession(session, includeSubagents);
             if (analysis.totals.calls > 0) { found = analysis; break; }
           }
           if (!found) {
             this.postMessage({ type: "error", requestId, error: `No sessions in range` });
             return;
           }
-          data = found;
+          data = { ...found, creditSettings: getCreditSettings() };
           break;
         }
         case "getSession": {
@@ -113,7 +117,7 @@ export class DashboardPanel {
             this.postMessage({ type: "error", requestId, error: "Ambiguous session ID" });
             return;
           }
-          data = analyzeSession(result as any);
+          data = { ...analyzeSession(result as any, includeSubagents), creditSettings: getCreditSettings() };
           break;
         }
         case "getAggregate": {
@@ -121,22 +125,48 @@ export class DashboardPanel {
           if (msg.from_ts && msg.to_ts) {
             aggSessions = aggSessions.filter(s => s.ts >= msg.from_ts && s.ts <= msg.to_ts);
           }
-          data = analyzeAggregate(msg.hours || 12, aggSessions);
-          if (!data) {
+          const agg = analyzeAggregate(msg.hours || 12, aggSessions, includeSubagents);
+          if (!agg) {
             this.postMessage({ type: "error", requestId, error: `No sessions in range` });
             return;
           }
+          data = { ...agg, creditSettings: getCreditSettings() };
+          break;
+        }
+        case "getModels": {
+          let modelSessions = findAllSessions(msg.from_ts ? 9999 : (msg.hours || 720));
+          if (msg.from_ts && msg.to_ts) {
+            modelSessions = modelSessions.filter(s => s.ts >= msg.from_ts && s.ts <= msg.to_ts);
+          }
+          data = getModelsOverview(msg.hours || 720, modelSessions, includeSubagents);
+          break;
+        }
+        case "refreshPricing": {
+          await refreshPricing();
+          let modelSessions = findAllSessions(msg.from_ts ? 9999 : (msg.hours || 720));
+          if (msg.from_ts && msg.to_ts) {
+            modelSessions = modelSessions.filter(s => s.ts >= msg.from_ts && s.ts <= msg.to_ts);
+          }
+          data = getModelsOverview(msg.hours || 720, modelSessions, includeSubagents);
+          break;
+        }
+        case "getCreditSettings": {
+          data = getCreditSettings();
+          break;
+        }
+        case "updateCreditSettings": {
+          data = saveCreditSettings(msg.settings || {});
           break;
         }
         case "getPricingSource": {
-          data = { source: "bundled pricing.json" };
+          data = getPricingStatus();
           break;
         }
         case "exportData": {
           const userId = resolveUserId(this.context);
           await exportData({
             userId,
-            format: msg.format || 'csv',
+            format: msg.format || "csv",
             fromTs: msg.from_ts,
             toTs: msg.to_ts,
             hours: msg.hours,
@@ -154,7 +184,7 @@ export class DashboardPanel {
             this.postMessage({ type: "error", requestId, error: "Ambiguous session ID" });
             return;
           }
-          data = analyzeSessionCost(costResult as any);
+          data = analyzeSessionCost(costResult as any, includeSubagents);
           break;
         }
         case "getSessionContext": {
@@ -180,7 +210,7 @@ export class DashboardPanel {
             this.postMessage({ type: "error", requestId, error: "Ambiguous session ID" });
             return;
           }
-          data = parseSessionDeepDive((ddResult as any).path);
+          data = parseSessionDeepDive((ddResult as any).path, includeSubagents);
           break;
         }
         default:
