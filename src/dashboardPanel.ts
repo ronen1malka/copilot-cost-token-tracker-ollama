@@ -20,7 +20,7 @@ import { exportData } from "./dataExporter";
 
 export class DashboardPanel {
   public static currentPanel: DashboardPanel | undefined;
-  private static readonly viewType = "copilotCostDashboard";
+  private static readonly viewType = "copilotCostOllamaDashboard";
 
   private readonly panel: vscode.WebviewPanel;
   private readonly extensionPath: string;
@@ -37,7 +37,7 @@ export class DashboardPanel {
 
     const panel = vscode.window.createWebviewPanel(
       DashboardPanel.viewType,
-      "Copilot Cost & Token Tracker Dashboard",
+      "Copilot Cost & Token Tracker - With Ollama Cloud Support",
       column,
       {
         enableScripts: true,
@@ -166,6 +166,7 @@ export class DashboardPanel {
             fromTs: msg.from_ts,
             toTs: msg.to_ts,
             hours: msg.hours,
+            workspaces: Array.isArray(msg.workspaces) ? msg.workspaces : undefined,
           });
           data = { ok: true };
           break;

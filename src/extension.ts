@@ -21,22 +21,22 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("copilotCost.openDashboard", () => {
+    vscode.commands.registerCommand("copilotCostOllama.openDashboard", () => {
       DashboardPanel.createOrShow(context.extensionUri.fsPath, context);
     }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("copilotCost.resetUserId", () => {
+    vscode.commands.registerCommand("copilotCostOllama.resetUserId", () => {
       const newId = resetUserId(context);
       vscode.window.showInformationMessage(`User ID reset to ${newId.slice(0, 8)}…`);
     }),
   );
 
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  statusBar.command = "copilotCost.openDashboard";
+  statusBar.command = "copilotCostOllama.openDashboard";
   statusBar.text = "$(zap) Token Cost";
-  statusBar.tooltip = "Open Copilot Cost & Token Tracker Dashboard";
+  statusBar.tooltip = "Open Copilot Cost & Token Tracker - With Ollama Cloud Support";
   statusBar.show();
   context.subscriptions.push(statusBar);
 }

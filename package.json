@@ -1,11 +1,11 @@
 {
   "name": "copilot-cost-token-tracker-ollama",
-  "displayName": "Copilot Cost & Token Tracker with Ollama Support",
-  "description": "Visualise token costs for agent sessions in VS Code",
+  "displayName": "Copilot Cost & Token Tracker - With Ollama Cloud Support",
+  "description": "Visualise token costs for GitHub Copilot and Ollama Cloud agent sessions in VS Code",
   "version": "1.1.5",
   "publisher": "netcomlabs-ai",
   "license": "MIT",
-  "keywords": ["ai", "cost", "tokens", "dashboard", "sessions","Ollama"],
+  "keywords": ["ai", "cost", "tokens", "dashboard", "sessions", "Ollama"],
   "extensionKind": [
     "ui",
     "workspace"
@@ -24,35 +24,35 @@
   "contributes": {
     "commands": [
       {
-        "command": "copilotCost.openDashboard",
-        "title": "Copilot Cost & Token Tracker: Open Dashboard"
+        "command": "copilotCostOllama.openDashboard",
+        "title": "Copilot Cost & Token Tracker - With Ollama Cloud Support: Open Dashboard"
       },
       {
-        "command": "copilotCost.resetUserId",
-        "title": "Copilot Cost & Token Tracker: Reset Anonymous User ID"
+        "command": "copilotCostOllama.resetUserId",
+        "title": "Copilot Cost & Token Tracker - With Ollama Cloud Support: Reset Anonymous User ID"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "copilotCost",
-          "title": "Token Cost Tracker",
+          "id": "copilotCostOllama",
+          "title": "Copilot Cost & Token Tracker - With Ollama Cloud Support",
           "icon": "images/activity-icon.svg"
         }
       ]
     },
     "views": {
-      "copilotCost": [
+      "copilotCostOllama": [
         {
-          "id": "copilotCostPanel",
-          "name": "Copilot Cost & Token Tracker Dashboard"
+          "id": "copilotCostOllamaPanel",
+          "name": "Copilot Cost & Token Tracker - With Ollama Cloud Support"
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "copilotCostPanel",
-        "contents": "Click below to open the full Cost Dashboard.\n\n[$(zap) Open Dashboard](command:copilotCost.openDashboard)"
+        "view": "copilotCostOllamaPanel",
+        "contents": "Click below to open the full Cost Dashboard.\n\n[$(zap) Open Dashboard](command:copilotCostOllama.openDashboard)"
       }
     ]
   },

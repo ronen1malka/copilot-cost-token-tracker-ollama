@@ -24,11 +24,20 @@ interface ExportRow {
   estimated_cost_usd: number;
 }
 
-function buildRows(fromTs: number, toTs: number, hours: number | undefined): ExportRow[] {
+function buildRows(
+  fromTs: number,
+  toTs: number,
+  hours: number | undefined,
+  workspaces?: string[],
+): ExportRow[] {
   const sessions = findAllSessions(fromTs ? 9999 : (hours || 12));
-  const filtered = fromTs && toTs
+  let filtered = fromTs && toTs
     ? sessions.filter(s => s.ts >= fromTs && s.ts <= toTs)
     : sessions;
+  if (Array.isArray(workspaces) && workspaces.length > 0) {
+    const wsSet = new Set(workspaces);
+    filtered = filtered.filter(s => wsSet.has(s.workspace_name));
+  }
 
   const rows: ExportRow[] = [];
 
@@ -121,10 +130,11 @@ export interface ExportDataOptions {
   fromTs?: number;
   toTs?: number;
   hours?: number;
+  workspaces?: string[];
 }
 
 export async function exportData(opts: ExportDataOptions): Promise<void> {
-  const rows = buildRows(opts.fromTs || 0, opts.toTs || 0, opts.hours);
+  const rows = buildRows(opts.fromTs || 0, opts.toTs || 0, opts.hours, opts.workspaces);
   if (rows.length === 0) {
     vscode.window.showWarningMessage("No data to export for the selected range.");
     return;
