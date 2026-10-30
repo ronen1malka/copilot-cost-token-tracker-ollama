@@ -36,7 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBar.command = "copilotCostOllama.openDashboard";
   statusBar.text = "$(zap) Token Cost";
-  statusBar.tooltip = "Open Copilot Cost & Token Tracker - With Ollama Cloud Support";
+  statusBar.tooltip = "Open Token Cost Tracker for Copilot & Ollama Cloud";
   statusBar.show();
   context.subscriptions.push(statusBar);
 }

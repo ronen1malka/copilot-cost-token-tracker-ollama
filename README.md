@@ -1,4 +1,4 @@
-# Copilot Cost & Token Tracker - With Ollama Cloud Support
+# Token Cost Tracker for Copilot & Ollama Cloud
 
 > **Fork Notice:** This extension is a fork from [https://github.com/assaelaz/copilot-cost-token-tracker](https://github.com/assaelaz/copilot-cost-token-tracker), extended with **Ollama Cloud** model and pricing support, live pricing scraping from both GitHub Copilot and Ollama Cloud, configurable monthly AI Credit plans, and workspace-level filtering.
 
@@ -60,14 +60,14 @@ Open the dashboard with any of these entry points:
 
 - Status bar: `Token Cost`
 - Activity bar: `Token Cost Tracker (Ollama Cloud)`
-- Command Palette: `Copilot Cost & Token Tracker - With Ollama Cloud Support: Open Dashboard`
+- Command Palette: `Token Cost Tracker for Copilot & Ollama Cloud: Open Dashboard`
 
 ## Commands
 
 | Command | Description |
 | --- | --- |
-| `Copilot Cost & Token Tracker - With Ollama Cloud Support: Open Dashboard` | Open the dashboard webview |
-| `Copilot Cost & Token Tracker - With Ollama Cloud Support: Reset Export User ID` | Reset the anonymous UUID used for CSV/JSON exports |
+| `Token Cost Tracker for Copilot & Ollama Cloud: Open Dashboard` | Open the dashboard webview |
+| `Token Cost Tracker for Copilot & Ollama Cloud: Reset Export User ID` | Reset the anonymous UUID used for CSV/JSON exports |
 
 ## Privacy
 
@@ -129,7 +129,7 @@ node test-runtime.js
 4. In the newly opened `[Extension Development Host]` window, open the dashboard using any entry point:
    - Click **`$(zap) Token Cost`** in the bottom Status Bar
    - Click the **Token Cost Tracker** icon in the Activity Bar
-   - Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run **`Copilot Cost & Token Tracker - With Ollama Cloud Support: Open Dashboard`**
+   - Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run **`Token Cost Tracker for Copilot & Ollama Cloud: Open Dashboard`**
 
 #### Debugging Tips
 

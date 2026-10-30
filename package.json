@@ -1,6 +1,6 @@
 {
   "name": "copilot-ollama-cost-tracker",
-  "displayName": "Copilot Cost & Token Tracker - With Ollama Cloud Support",
+  "displayName": "Token Cost Tracker for Copilot & Ollama Cloud",
   "description": "Track, analyze, and visualize token usage, USD costs, and AI Credits for Ollama Cloud and GitHub Copilot agent sessions in VS Code",
   "version": "1.1.5",
   "publisher": "ronen1malka",
@@ -71,18 +71,18 @@
     "commands": [
       {
         "command": "copilotCostOllama.openDashboard",
-        "title": "Copilot Cost & Token Tracker - With Ollama Cloud Support: Open Dashboard"
+        "title": "Token Cost Tracker for Copilot & Ollama Cloud: Open Dashboard"
       },
       {
         "command": "copilotCostOllama.resetUserId",
-        "title": "Copilot Cost & Token Tracker - With Ollama Cloud Support: Reset Anonymous User ID"
+        "title": "Token Cost Tracker for Copilot & Ollama Cloud: Reset Anonymous User ID"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "copilotCostOllama",
-          "title": "Copilot Cost & Token Tracker - With Ollama Cloud Support",
+          "title": "Token Cost Tracker for Copilot & Ollama Cloud",
           "icon": "images/activity-icon.svg"
         }
       ]
@@ -91,7 +91,7 @@
       "copilotCostOllama": [
         {
           "id": "copilotCostOllamaPanel",
-          "name": "Copilot Cost & Token Tracker - With Ollama Cloud Support"
+          "name": "Token Cost Tracker for Copilot & Ollama Cloud"
         }
       ]
     },

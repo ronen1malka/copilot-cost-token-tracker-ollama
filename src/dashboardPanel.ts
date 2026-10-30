@@ -37,7 +37,7 @@ export class DashboardPanel {
 
     const panel = vscode.window.createWebviewPanel(
       DashboardPanel.viewType,
-      "Copilot Cost & Token Tracker - With Ollama Cloud Support",
+      "Token Cost Tracker for Copilot & Ollama Cloud",
       column,
       {
         enableScripts: true,
