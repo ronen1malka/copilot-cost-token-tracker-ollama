@@ -1,9 +1,15 @@
 .vscode
+.github
 node_modules
 src
+specs
 tsconfig.json
 **/*.ts
 **/*.map
 !images/**
 package-lock.json
 test-runtime.js
+CLAUDE.md
+GEMINI.md
+.gitignore
+*.vsix

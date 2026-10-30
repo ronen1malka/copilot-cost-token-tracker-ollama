@@ -1,11 +1,53 @@
 {
   "name": "copilot-cost-token-tracker-ollama",
   "displayName": "Copilot Cost & Token Tracker - With Ollama Cloud Support",
-  "description": "Visualise token costs for GitHub Copilot and Ollama Cloud agent sessions in VS Code",
+  "description": "Track, analyze, and visualize token usage, USD costs, and AI Credits for Ollama Cloud and GitHub Copilot agent sessions in VS Code",
   "version": "1.1.5",
-  "publisher": "netcomlabs-ai",
+  "publisher": "ronen1malka",
+  "author": {
+    "name": "Ronen Malka"
+  },
   "license": "MIT",
-  "keywords": ["ai", "cost", "tokens", "dashboard", "sessions", "Ollama"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ronen1malka/copilot-cost-token-tracker-ollama.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ronen1malka/copilot-cost-token-tracker-ollama/issues"
+  },
+  "homepage": "https://github.com/ronen1malka/copilot-cost-token-tracker-ollama#readme",
+  "keywords": [
+    "ollama",
+    "ollama-cloud",
+    "ollama cloud",
+    "ollama pricing",
+    "ollama cost",
+    "ollama tokens",
+    "ollama credits",
+    "ollama usage",
+    "ollama pro",
+    "ollama max",
+    "copilot",
+    "github-copilot",
+    "copilot-chat",
+    "byok",
+    "token-tracker",
+    "cost-tracker",
+    "ai-credits",
+    "token-usage",
+    "llm-cost",
+    "billing",
+    "kimi",
+    "deepseek",
+    "qwen",
+    "glm",
+    "minimax",
+    "gemma",
+    "ai",
+    "cost",
+    "tokens",
+    "dashboard"
+  ],
   "extensionKind": [
     "ui",
     "workspace"
@@ -18,7 +60,11 @@
     "vscode": "^1.85.0"
   },
   "icon": "images/icon.png",
-  "categories": ["AI"],
+  "categories": [
+    "AI",
+    "Chat",
+    "Visualization"
+  ],
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
