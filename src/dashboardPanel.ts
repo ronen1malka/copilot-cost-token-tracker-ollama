@@ -11,6 +11,7 @@ import {
   analyzeSession, analyzeSessionCost, analyzeAggregate, SessionAnalysis,
   parseSessionContext, parseSessionDeepDive, getModelsOverview,
 } from "./sessionParser";
+import { invalidateSessionCache } from "./sessionDiscovery";
 import {
   refreshPricing, getPricingStatus, getCreditSettings, saveCreditSettings,
 } from "./pricing";
@@ -134,20 +135,15 @@ export class DashboardPanel {
           break;
         }
         case "getModels": {
-          let modelSessions = findAllSessions(msg.from_ts ? 9999 : (msg.hours || 720));
-          if (msg.from_ts && msg.to_ts) {
-            modelSessions = modelSessions.filter(s => s.ts >= msg.from_ts && s.ts <= msg.to_ts);
-          }
-          data = getModelsOverview(msg.hours || 720, modelSessions, includeSubagents);
+          const modelSessions = findAllSessions(9999);
+          data = getModelsOverview(9999, modelSessions, includeSubagents);
           break;
         }
         case "refreshPricing": {
+          invalidateSessionCache();
           await refreshPricing();
-          let modelSessions = findAllSessions(msg.from_ts ? 9999 : (msg.hours || 720));
-          if (msg.from_ts && msg.to_ts) {
-            modelSessions = modelSessions.filter(s => s.ts >= msg.from_ts && s.ts <= msg.to_ts);
-          }
-          data = getModelsOverview(msg.hours || 720, modelSessions, includeSubagents);
+          const modelSessions = findAllSessions(9999);
+          data = getModelsOverview(9999, modelSessions, includeSubagents);
           break;
         }
         case "getCreditSettings": {

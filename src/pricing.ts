@@ -589,6 +589,8 @@ export function stripProviderPrefix(modelKey: string): string {
   return modelKey
     .replace(/^customendpoint\/ollama\s*cloud\//i, "")
     .replace(/^customendpoint\/[^/]+\//i, "")
+    .replace(/^ollama-models\//i, "")
+    .replace(/^ollama\/ollama\//i, "")
     .replace(/^(?:ollama|copilot)\//i, "");
 }
 
@@ -616,6 +618,7 @@ export function detectProvider(
   // 1. Explicit prefix in model string
   if (
     lower.startsWith("ollama/") ||
+    lower.startsWith("ollama-models/") ||
     lower.startsWith("customendpoint/ollama") ||
     lower.includes("ollama cloud/")
   ) {
@@ -630,8 +633,29 @@ export function detectProvider(
     return "ollama";
   }
 
-  // 3. Inspect llm_request attrs for endpoint / provider hints
+  // 3. Explicit Copilot-exclusive model families (never served by Ollama Cloud)
+  const strippedLower = stripProviderPrefix(trimmed).toLowerCase();
+  if (
+    strippedLower.startsWith("claude-") ||
+    (strippedLower.startsWith("gpt-") && !strippedLower.startsWith("gpt-oss")) ||
+    strippedLower.startsWith("gemini-") ||
+    strippedLower.startsWith("grok-") ||
+    strippedLower.startsWith("copilot-") ||
+    strippedLower.startsWith("mai-") ||
+    strippedLower.startsWith("o1") ||
+    strippedLower.startsWith("o3") ||
+    strippedLower.startsWith("o4") ||
+    strippedLower.startsWith("goldeneye") ||
+    strippedLower.startsWith("raptor-")
+  ) {
+    return "copilot";
+  }
+
+  // 4. Inspect llm_request / usage_record attrs for endpoint / provider hints
   if (attrs) {
+    if (attrs.isByok === false) {
+      return "copilot";
+    }
     const providerFields = [
       attrs.provider,
       attrs.modelProvider,
@@ -652,12 +676,7 @@ export function detectProvider(
     }
   }
 
-  // 4. Session-level provider hint (from chatSessions/<id>.jsonl or other calls in same session)
-  if (sessionProviderHint) {
-    return sessionProviderHint;
-  }
-
-  // 5. Catalog membership check: if model exists ONLY in Ollama catalog, classify as ollama
+  // 5. Catalog membership check: if model exists ONLY in one provider's catalog, use that provider
   const cleanNorm = normalise(cleanOllamaCloudTag(stripProviderPrefix(trimmed)));
   const inOllama = Boolean(PRICING[`ollama/${cleanNorm}`]) ||
     Object.keys(PRICING).some(k => k.startsWith("ollama/") && (k.slice(7).includes(cleanNorm) || cleanNorm.includes(k.slice(7))));
@@ -666,6 +685,18 @@ export function detectProvider(
 
   if (inOllama && !inCopilot) {
     return "ollama";
+  }
+  if (inCopilot && !inOllama) {
+    return "copilot";
+  }
+
+  // 6. Ambiguous model (exists in both catalogs, e.g. kimi-k2.7-code, kimi-3/kimi-k3) or unknown:
+  // use session-level provider hint or BYOK flag
+  if (attrs?.isByok === true) {
+    return "ollama";
+  }
+  if (sessionProviderHint) {
+    return sessionProviderHint;
   }
 
   return "copilot";

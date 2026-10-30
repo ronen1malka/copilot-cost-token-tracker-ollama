@@ -1,6 +1,7 @@
 /**
- * Session discovery — finds Copilot debug-log sessions across all VS Code
- * workspace storage directories.  Ported from session-cost.py.
+ * Session discovery — finds Copilot and Ollama agent sessions across all VS Code
+ * workspace storage directories (debug-logs & chatSessions) as well as Copilot CLI /
+ * VS Code Agent Host session-state directories (~/.copilot/session-state).
  */
 
 import * as fs from "fs";
@@ -8,6 +9,8 @@ import * as path from "path";
 import * as os from "os";
 
 // ── Types ──────────────────────────────────────────────────────────────
+
+export type SessionSource = "vscode" | "insiders" | "cli" | "remote";
 
 export interface SessionRecord {
   id: string;
@@ -19,6 +22,9 @@ export interface SessionRecord {
   workspace_name: string;
   workspace_id: string;
   session_title: string;
+  source?: SessionSource;
+  chat_session_path?: string;
+  debug_main_path?: string;
 }
 
 // ── Workspace storage directories ──────────────────────────────────────
@@ -75,6 +81,38 @@ function allWorkspaceStorageDirs(): string[] {
   }
 
   return dirs;
+}
+
+export function allCliSessionDirs(): string[] {
+  const dirs: string[] = [];
+  const home = os.homedir();
+  const copilotHome = process.env.COPILOT_HOME || path.join(home, ".copilot");
+  const sessionStateRoot = path.join(copilotHome, "session-state");
+  if (!fs.existsSync(sessionStateRoot)) {
+    return dirs;
+  }
+  try {
+    for (const entry of fs.readdirSync(sessionStateRoot, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        dirs.push(path.join(sessionStateRoot, entry.name));
+      }
+    }
+  } catch { /* ignore */ }
+  return dirs;
+}
+
+function classifyWorkspaceStorageDir(wsDir: string): SessionSource {
+  const normalized = wsDir.replace(/\\/g, "/");
+  if (
+    normalized.includes("/.vscode-server/") ||
+    normalized.includes("/.vscode-server-insiders/")
+  ) {
+    return "remote";
+  }
+  if (normalized.includes("/Code - Insiders/")) {
+    return "insiders";
+  }
+  return "vscode";
 }
 
 // ── Workspace naming ───────────────────────────────────────────────────
@@ -145,6 +183,16 @@ export function getWorkspaceName(wsDir: string): string {
 
 // ── Session title extraction ───────────────────────────────────────────
 
+function cleanTitleText(text: string): string {
+  const clean = text
+    .replace(/\\r\\n|\\n|\\r/g, " ")
+    .replace(/\\t/g, " ")
+    .replace(/\\"/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+  return clean.length > 80 ? clean.slice(0, 77) + "…" : clean;
+}
+
 function firstUserMessage(sessionDir: string): string {
   const mainPath = path.join(sessionDir, "main.jsonl");
   if (!fs.existsSync(mainPath)) { return ""; }
@@ -157,8 +205,7 @@ function firstUserMessage(sessionDir: string): string {
       if (entry.type === "user_message") {
         const text: string = entry.attrs?.content || "";
         if (text) {
-          const clean = text.replace(/\s+/g, " ").trim();
-          return clean.length > 80 ? clean.slice(0, 77) + "…" : clean;
+          return cleanTitleText(text);
         }
       }
     }
@@ -166,9 +213,12 @@ function firstUserMessage(sessionDir: string): string {
   return "";
 }
 
-function hasChatSessionRecord(wsDir: string, sessionId: string): boolean {
-  const chatSessionPath = path.join(wsDir, "chatSessions", `${sessionId}.jsonl`);
-  return fs.existsSync(chatSessionPath);
+export function findChatSessionFile(wsDir: string, sessionId: string): string | undefined {
+  const p1 = path.join(wsDir, "chatSessions", `${sessionId}.jsonl`);
+  if (fs.existsSync(p1)) { return p1; }
+  const p2 = path.join(wsDir, "GitHub.copilot-chat", "chatSessions", `${sessionId}.jsonl`);
+  if (fs.existsSync(p2)) { return p2; }
+  return undefined;
 }
 
 export function getSessionTitle(sessionDir: string): string {
@@ -189,7 +239,7 @@ export function getSessionTitle(sessionDir: string): string {
             for (const part of resp) {
               if (part?.role === "assistant" && part.parts?.length) {
                 const text = part.parts[0].content;
-                if (text) { return text.trim(); }
+                if (text) { return cleanTitleText(text); }
               }
             }
           }
@@ -251,6 +301,261 @@ function sessionTs(folder: string): number {
   return 0;
 }
 
+// ── Chat-Only Session Quick Metadata ───────────────────────────────────
+
+interface QuickChatMeta {
+  createdAt: number;
+  lastRequestAt: number;
+  title: string;
+  requestCount: number;
+}
+
+const _chatMetaCache = new Map<string, { mtimeMs: number; size: number; meta: QuickChatMeta | null }>();
+
+function getQuickChatSessionMeta(chatSessionPath: string): QuickChatMeta | null {
+  try {
+    const stat = fs.statSync(chatSessionPath);
+    if (stat.size < 128) { return null; }
+    const cached = _chatMetaCache.get(chatSessionPath);
+    if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+      return cached.meta;
+    }
+
+    const content = fs.readFileSync(chatSessionPath, "utf-8");
+    let createdAt = 0;
+    let firstTs = 0;
+    let lastTs = 0;
+    let title = "";
+    let requestCount = 0;
+
+    for (const line of content.split("\n")) {
+      if (!line.trim()) { continue; }
+      let entry: any;
+      try { entry = JSON.parse(line); } catch { continue; }
+      if (entry.kind === 0 && entry.v) {
+        if (entry.v.creationDate) { createdAt = Number(entry.v.creationDate) || createdAt; }
+        const reqs = Array.isArray(entry.v.requests) ? entry.v.requests : [];
+        for (const r of reqs) {
+          if (r && (r.requestId || r.modelId)) {
+            requestCount++;
+            const rts = Number(r.timestamp) || 0;
+            if (rts > 0) {
+              if (!firstTs || rts < firstTs) { firstTs = rts; }
+              if (rts > lastTs) { lastTs = rts; }
+            }
+            if (!title && typeof r.message?.text === "string" && r.message.text.trim()) {
+              title = cleanTitleText(r.message.text);
+            }
+          }
+        }
+      } else if (entry.kind === 2 && Array.isArray(entry.k) && entry.k.length === 1 && entry.k[0] === "requests") {
+        const reqs = Array.isArray(entry.v) ? entry.v : [];
+        for (const r of reqs) {
+          if (r && (r.requestId || r.modelId)) {
+            requestCount++;
+            const rts = Number(r.timestamp) || 0;
+            if (rts > 0) {
+              if (!firstTs || rts < firstTs) { firstTs = rts; }
+              if (rts > lastTs) { lastTs = rts; }
+            }
+            if (!title && typeof r.message?.text === "string" && r.message.text.trim()) {
+              title = cleanTitleText(r.message.text);
+            }
+          }
+        }
+      }
+    }
+
+    const meta: QuickChatMeta | null = requestCount > 0
+      ? {
+          createdAt: createdAt || firstTs || lastTs || Math.floor(stat.mtimeMs),
+          lastRequestAt: lastTs || createdAt || Math.floor(stat.mtimeMs),
+          title: title || "untitled",
+          requestCount,
+        }
+      : null;
+
+    _chatMetaCache.set(chatSessionPath, { mtimeMs: stat.mtimeMs, size: stat.size, meta });
+    return meta;
+  } catch {
+    return null;
+  }
+}
+
+// ── CLI / Agent Host Session Discovery (~/.copilot/session-state) ──────
+
+function parseWorkspaceYaml(filePath: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (!fs.existsSync(filePath)) { return result; }
+  try {
+    const content = fs.readFileSync(filePath, "utf-8");
+    for (const line of content.split(/\r?\n/)) {
+      const m = line.match(/^(\w+):\s*(.+)$/);
+      if (m) {
+        let val = m[2].trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        result[m[1]] = val;
+      }
+    }
+  } catch { /* ignore */ }
+  return result;
+}
+
+function parseEntryTs(entry: any): number {
+  const raw = entry?.ts ?? entry?.timestamp ?? entry?.data?.startTime;
+  if (typeof raw === "number") { return raw; }
+  if (typeof raw === "string") {
+    const ms = Date.parse(raw);
+    return Number.isNaN(ms) ? 0 : ms;
+  }
+  return 0;
+}
+
+function cliSessionFirstInfo(eventsPath: string): { firstTs: number; firstUserMsg: string; cwd: string } {
+  let firstTs = 0;
+  let firstUserMsg = "";
+  let cwd = "";
+  try {
+    const fd = fs.openSync(eventsPath, "r");
+    try {
+      const buf = Buffer.alloc(65536);
+      const bytesRead = fs.readSync(fd, buf, 0, 65536, 0);
+      if (bytesRead > 0) {
+        const chunk = buf.toString("utf-8", 0, bytesRead);
+        for (const line of chunk.split("\n")) {
+          if (!line.trim()) { continue; }
+          try {
+            const entry = JSON.parse(line);
+            if (!firstTs) {
+              const ts = parseEntryTs(entry);
+              if (ts > 0) { firstTs = ts; }
+            }
+            const etype = entry.type || entry.event || "";
+            if (etype === "session.start" && !cwd) {
+              cwd = entry.data?.context?.cwd || entry.data?.context?.gitRoot || "";
+            }
+            if (etype === "user.message" && !firstUserMsg) {
+              const text = entry.data?.content || entry.data?.prompt || entry.data?.text || entry.data?.message || "";
+              if (typeof text === "string" && text.trim()) {
+                firstUserMsg = cleanTitleText(text);
+              }
+            }
+            if (firstTs && firstUserMsg) { break; }
+          } catch { /* partial line at end of 64KB chunk */ }
+        }
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch { /* ignore */ }
+  return { firstTs, firstUserMsg, cwd };
+}
+
+function cliSessionLastTs(eventsPath: string, fileSize: number): number {
+  try {
+    const fd = fs.openSync(eventsPath, "r");
+    try {
+      const readSize = Math.min(fileSize, 65536);
+      const offset = Math.max(0, fileSize - readSize);
+      const buf = Buffer.alloc(readSize);
+      const bytesRead = fs.readSync(fd, buf, 0, readSize, offset);
+      if (bytesRead === 0) { return 0; }
+      const chunk = buf.toString("utf-8", 0, bytesRead);
+      const lines = chunk.split("\n");
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        if (!line) { continue; }
+        try {
+          const entry = JSON.parse(line);
+          const ts = parseEntryTs(entry);
+          if (ts > 0) { return ts; }
+        } catch { /* ignore partial first line of tail chunk */ }
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch { /* ignore */ }
+  return 0;
+}
+
+const _cliRecordCache = new Map<string, { mtimeMs: number; size: number; record: SessionRecord | null }>();
+
+function buildCliSessionRecord(sessionDir: string): SessionRecord | null {
+  const eventsPath = path.join(sessionDir, "events.jsonl");
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(eventsPath);
+    if (stat.size < 256) { return null; }
+  } catch {
+    return null;
+  }
+
+  const cached = _cliRecordCache.get(sessionDir);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+    return cached.record;
+  }
+
+  const sid = path.basename(sessionDir);
+  const meta = parseWorkspaceYaml(path.join(sessionDir, "workspace.yaml"));
+  const firstInfo = cliSessionFirstInfo(eventsPath);
+
+  let ts = 0;
+  if (meta.created_at) {
+    const ms = Date.parse(meta.created_at);
+    if (!Number.isNaN(ms)) { ts = ms; }
+  }
+  if (!ts) {
+    ts = firstInfo.firstTs;
+  }
+  if (!ts) {
+    _cliRecordCache.set(sessionDir, { mtimeMs: stat.mtimeMs, size: stat.size, record: null });
+    return null;
+  }
+
+  let lastTs = cliSessionLastTs(eventsPath, stat.size);
+  if (!lastTs && meta.updated_at) {
+    const ms = Date.parse(meta.updated_at);
+    if (!Number.isNaN(ms)) { lastTs = ms; }
+  }
+  if (!lastTs) { lastTs = ts; }
+
+  const cwdPath = meta.git_root || meta.cwd || firstInfo.cwd || "";
+  let wsName = "cli";
+  if (cwdPath) {
+    wsName = path.basename(cwdPath.replace(/\\/g, "/")) || "cli";
+  } else if (meta.repository) {
+    wsName = meta.repository.split("/").pop() || "cli";
+  }
+
+  let title = "untitled";
+  if (meta.name || meta.summary) {
+    title = cleanTitleText(meta.name || meta.summary);
+  } else if (firstInfo.firstUserMsg) {
+    title = firstInfo.firstUserMsg;
+  }
+
+  const dt = new Date(ts).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+  const lastDate = new Date(lastTs).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+
+  const record: SessionRecord = {
+    id: sid,
+    ts,
+    date: dt,
+    last_ts: lastTs,
+    last_date: lastDate,
+    path: sessionDir,
+    workspace_name: wsName,
+    workspace_id: `cli:${wsName}`,
+    session_title: title,
+    source: "cli",
+  };
+
+  _cliRecordCache.set(sessionDir, { mtimeMs: stat.mtimeMs, size: stat.size, record });
+  return record;
+}
+
 // ── Pick best duplicate ────────────────────────────────────────────────
 
 function pickBest(candidates: SessionRecord[]): SessionRecord {
@@ -271,80 +576,178 @@ function pickBest(candidates: SessionRecord[]): SessionRecord {
 
 // ── Session cache ──────────────────────────────────────────────────────
 
-let _sessionCache: { ts: number; hours: number; sessions: SessionRecord[] } | null = null;
+let _allSessionsCache: { ts: number; sessions: SessionRecord[] } | null = null;
 const SESSION_CACHE_TTL = 10_000; // 10 seconds
 
-export function invalidateSessionCache() { _sessionCache = null; }
+export function invalidateSessionCache() { _allSessionsCache = null; }
+
+const _debugRecordCache = new Map<string, { mtimeMs: number; size: number; record: SessionRecord | null }>();
 
 // ── Public API ─────────────────────────────────────────────────────────
 
-export function findAllSessions(hours: number = 12): SessionRecord[] {
+function discoverAllSessionsUnfiltered(): SessionRecord[] {
   const now = Date.now();
-  if (_sessionCache && _sessionCache.hours === hours && (now - _sessionCache.ts) < SESSION_CACHE_TTL) {
-    return _sessionCache.sessions;
+  if (_allSessionsCache && (now - _allSessionsCache.ts) < SESSION_CACHE_TTL) {
+    return _allSessionsCache.sessions;
   }
-  const cutoffMs = (Date.now() - hours * 3600 * 1000);
+
   const byId = new Map<string, SessionRecord[]>();
 
+  // 1. VS Code / Insiders / Remote workspaceStorage sessions
   for (const wsDir of allWorkspaceStorageDirs()) {
+    const source = classifyWorkspaceStorageDir(wsDir);
     const logsRoot = path.join(wsDir, "GitHub.copilot-chat", "debug-logs");
-    if (!fs.existsSync(logsRoot)) { continue; }
-
     const wsName = getWorkspaceName(wsDir);
+    const seenInWs = new Set<string>();
 
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(logsRoot, { withFileTypes: true });
-    } catch { continue; }
-
-    for (const entry of entries) {
-      if (!entry.isDirectory()) { continue; }
-      const sid = entry.name;
-      const sessionPath = path.join(logsRoot, sid);
-
-      // Keep only real user chat sessions and skip internal helper runs.
-      if (!hasChatSessionRecord(wsDir, sid)) { continue; }
-
-      // Skip empty sessions (only session_start, no actual LLM data)
-      const mainFile = path.join(sessionPath, "main.jsonl");
+    if (fs.existsSync(logsRoot)) {
+      let entries: fs.Dirent[] = [];
       try {
-        const size = fs.statSync(mainFile).size;
-        if (size < 1024) { continue; }
+        entries = fs.readdirSync(logsRoot, { withFileTypes: true });
+      } catch { /* ignore */ }
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) { continue; }
+        const sid = entry.name;
+        const sessionPath = path.join(logsRoot, sid);
+        const chatFile = findChatSessionFile(wsDir, sid);
+
+        // Keep only real user chat sessions and skip internal helper runs.
+        if (!chatFile) { continue; }
+        seenInWs.add(sid);
+
+        const mainFile = path.join(sessionPath, "main.jsonl");
+        let mainStat: fs.Stats | null = null;
+        try {
+          const st = fs.statSync(mainFile);
+          if (st.size >= 512) { mainStat = st; }
+        } catch { /* ignore */ }
+
+        if (mainStat) {
+          const cached = _debugRecordCache.get(sessionPath);
+          if (cached && cached.mtimeMs === mainStat.mtimeMs && cached.size === mainStat.size) {
+            if (cached.record) {
+              if (!byId.has(sid)) { byId.set(sid, []); }
+              byId.get(sid)!.push(cached.record);
+            }
+            continue;
+          }
+
+          const ts = sessionTs(sessionPath);
+          if (ts === 0) {
+            _debugRecordCache.set(sessionPath, { mtimeMs: mainStat.mtimeMs, size: mainStat.size, record: null });
+            continue;
+          }
+          const lastTs = sessionLastTs(sessionPath) || ts;
+          const dt = new Date(ts).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+          const lastDate = new Date(lastTs).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+          const title = getSessionTitle(sessionPath);
+
+          const record: SessionRecord = {
+            id: sid,
+            ts,
+            date: dt,
+            last_ts: lastTs,
+            last_date: lastDate,
+            path: sessionPath,
+            workspace_name: wsName,
+            workspace_id: path.basename(wsDir),
+            session_title: title,
+            source,
+            chat_session_path: chatFile,
+            debug_main_path: mainFile,
+          };
+          _debugRecordCache.set(sessionPath, { mtimeMs: mainStat.mtimeMs, size: mainStat.size, record });
+          if (!byId.has(sid)) { byId.set(sid, []); }
+          byId.get(sid)!.push(record);
+        } else {
+          // Debug log is empty/missing, fall back to chatSessions/{sid}.jsonl metadata
+          const chatMeta = getQuickChatSessionMeta(chatFile);
+          if (!chatMeta) { continue; }
+          const ts = chatMeta.createdAt;
+          const lastTs = chatMeta.lastRequestAt || ts;
+          const dt = new Date(ts).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+          const lastDate = new Date(lastTs).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+          const record: SessionRecord = {
+            id: sid,
+            ts,
+            date: dt,
+            last_ts: lastTs,
+            last_date: lastDate,
+            path: fs.existsSync(sessionPath) ? sessionPath : chatFile,
+            workspace_name: wsName,
+            workspace_id: path.basename(wsDir),
+            session_title: chatMeta.title,
+            source,
+            chat_session_path: chatFile,
+          };
+          if (!byId.has(sid)) { byId.set(sid, []); }
+          byId.get(sid)!.push(record);
+        }
+      }
+    }
+
+    // Also scan chatSessions directories for chat-only sessions without a debug-logs directory
+    for (const chatDir of [
+      path.join(wsDir, "chatSessions"),
+      path.join(wsDir, "GitHub.copilot-chat", "chatSessions"),
+    ]) {
+      if (!fs.existsSync(chatDir)) { continue; }
+      let chatFiles: fs.Dirent[] = [];
+      try {
+        chatFiles = fs.readdirSync(chatDir, { withFileTypes: true });
       } catch { continue; }
-
-      const ts = sessionTs(sessionPath);
-      if (ts === 0) { continue; }
-
-      const lastTs = sessionLastTs(sessionPath);
-      // Include the session if it was *active* within the window
-      const activeTs = lastTs || ts;
-      if (activeTs < cutoffMs) { continue; }
-
-      const dt = new Date(ts).toISOString().replace("T", " ").slice(0, 16) + " UTC";
-      const lastDate = lastTs
-        ? new Date(lastTs).toISOString().replace("T", " ").slice(0, 16) + " UTC"
-        : dt;      const title = getSessionTitle(sessionPath);
-
-      const record: SessionRecord = {
-        id: sid,
-        ts,
-        date: dt,
-        last_ts: lastTs,
-        last_date: lastDate,
-        path: sessionPath,
-        workspace_name: wsName,
-        workspace_id: path.basename(wsDir),
-        session_title: title,
-      };
-
-      if (!byId.has(sid)) { byId.set(sid, []); }
-      byId.get(sid)!.push(record);
+      for (const cf of chatFiles) {
+        if (!cf.isFile() || !cf.name.endsWith(".jsonl")) { continue; }
+        const sid = path.basename(cf.name, ".jsonl");
+        if (seenInWs.has(sid)) { continue; }
+        seenInWs.add(sid);
+        const chatFile = path.join(chatDir, cf.name);
+        const chatMeta = getQuickChatSessionMeta(chatFile);
+        if (!chatMeta) { continue; }
+        const ts = chatMeta.createdAt;
+        const lastTs = chatMeta.lastRequestAt || ts;
+        const dt = new Date(ts).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+        const lastDate = new Date(lastTs).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+        const record: SessionRecord = {
+          id: sid,
+          ts,
+          date: dt,
+          last_ts: lastTs,
+          last_date: lastDate,
+          path: chatFile,
+          workspace_name: wsName,
+          workspace_id: path.basename(wsDir),
+          session_title: chatMeta.title,
+          source,
+          chat_session_path: chatFile,
+        };
+        if (!byId.has(sid)) { byId.set(sid, []); }
+        byId.get(sid)!.push(record);
+      }
     }
   }
 
-  const sessions = Array.from(byId.values()).map(pickBest).sort((a, b) => (b.last_ts || b.ts) - (a.last_ts || a.ts));
-  _sessionCache = { ts: Date.now(), hours, sessions };
+  // 2. Copilot CLI / VS Code Agent Host sessions (~/.copilot/session-state)
+  for (const cliDir of allCliSessionDirs()) {
+    const record = buildCliSessionRecord(cliDir);
+    if (!record) { continue; }
+    if (!byId.has(record.id)) { byId.set(record.id, []); }
+    byId.get(record.id)!.push(record);
+  }
+
+  const sessions = Array.from(byId.values())
+    .map(pickBest)
+    .sort((a, b) => (b.last_ts || b.ts) - (a.last_ts || a.ts));
+
+  _allSessionsCache = { ts: Date.now(), sessions };
   return sessions;
+}
+
+export function findAllSessions(hours: number = 12): SessionRecord[] {
+  const cutoffMs = Date.now() - hours * 3600 * 1000;
+  const all = discoverAllSessionsUnfiltered();
+  return all.filter(s => (s.last_ts || s.ts) >= cutoffMs);
 }
 
 export function getLatestSession(hours: number = 12): SessionRecord | undefined {
@@ -353,50 +756,15 @@ export function getLatestSession(hours: number = 12): SessionRecord | undefined 
 }
 
 export function findSessionById(sessionId: string): SessionRecord | { _ambiguous: SessionRecord[] } | undefined {
-  const byId = new Map<string, SessionRecord[]>();
-
-  for (const wsDir of allWorkspaceStorageDirs()) {
-    const logsRoot = path.join(wsDir, "GitHub.copilot-chat", "debug-logs");
-    if (!fs.existsSync(logsRoot)) { continue; }
-
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(logsRoot, { withFileTypes: true });
-    } catch { continue; }
-
-    for (const entry of entries) {
-      if (!entry.isDirectory()) { continue; }
-      if (entry.name !== sessionId && !entry.name.startsWith(sessionId)) { continue; }
-      if (!hasChatSessionRecord(wsDir, entry.name)) { continue; }
-
-      const sessionPath = path.join(logsRoot, entry.name);
-      const ts = sessionTs(sessionPath);
-      const dt = ts ? new Date(ts).toISOString().replace("T", " ").slice(0, 16) + " UTC" : "unknown";
-      const lastTs = sessionLastTs(sessionPath);
-      const lastDate = lastTs ? new Date(lastTs).toISOString().replace("T", " ").slice(0, 16) + " UTC" : dt;
-      const wsName = getWorkspaceName(wsDir);
-      const title = getSessionTitle(sessionPath);
-
-      const record: SessionRecord = {
-        id: entry.name,
-        ts,
-        date: dt,
-        last_ts: lastTs,
-        last_date: lastDate,
-        path: sessionPath,
-        workspace_name: wsName,
-        workspace_id: path.basename(wsDir),
-        session_title: title,
-      };
-
-      if (!byId.has(entry.name)) { byId.set(entry.name, []); }
-      byId.get(entry.name)!.push(record);
-    }
+  const all = discoverAllSessionsUnfiltered();
+  const matches = all.filter(s => s.id === sessionId || s.id.startsWith(sessionId));
+  if (matches.length === 1) {
+    return matches[0];
   }
-
-  if (byId.size === 0) { return undefined; }
-  if (byId.size > 1) {
-    return { _ambiguous: Array.from(byId.values()).map(pickBest) };
+  if (matches.length > 1) {
+    const exact = matches.filter(s => s.id === sessionId);
+    if (exact.length === 1) { return exact[0]; }
+    return { _ambiguous: matches };
   }
-  return pickBest(Array.from(byId.values())[0]);
+  return undefined;
 }

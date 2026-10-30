@@ -1,11 +1,11 @@
 {
-  "name": "copilot-cost-token-tracker",
-  "displayName": "Copilot Cost & Token Tracker",
+  "name": "copilot-cost-token-tracker-ollama",
+  "displayName": "Copilot Cost & Token Tracker with Ollama Support",
   "description": "Visualise token costs for agent sessions in VS Code",
   "version": "1.1.5",
   "publisher": "netcomlabs-ai",
   "license": "MIT",
-  "keywords": ["ai", "cost", "tokens", "dashboard", "sessions"],
+  "keywords": ["ai", "cost", "tokens", "dashboard", "sessions","Ollama"],
   "extensionKind": [
     "ui",
     "workspace"
