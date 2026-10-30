@@ -1,5 +1,5 @@
 {
-  "name": "copilot-cost-token-tracker-ollama",
+  "name": "copilot-ollama-cost-tracker",
   "displayName": "Copilot Cost & Token Tracker - With Ollama Cloud Support",
   "description": "Track, analyze, and visualize token usage, USD costs, and AI Credits for Ollama Cloud and GitHub Copilot agent sessions in VS Code",
   "version": "1.1.5",

@@ -147,10 +147,10 @@ To build a standalone `.vsix` package and install it in your local VS Code insta
 npm run package
 ```
 
-This compiles the TypeScript code and outputs `copilot-cost-token-tracker-ollama-<version>.vsix` in the project root. You can install it via the UI (**Extensions** -> `...` -> **Install from VSIX...**) or from the CLI:
+This compiles the TypeScript code and outputs `copilot-ollama-cost-tracker-<version>.vsix` in the project root. You can install it via the UI (**Extensions** -> `...` -> **Install from VSIX...**) or from the CLI:
 
 ```bash
-code --install-extension copilot-cost-token-tracker-ollama-1.1.5.vsix
+code --install-extension copilot-ollama-cost-tracker-1.1.5.vsix
 ```
 
 ## Supported Ollama Cloud Models & Tags
